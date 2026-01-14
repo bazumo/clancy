@@ -32,4 +32,5 @@ export interface Flow {
   response?: FlowResponse
   duration?: number
   isSSE?: boolean
+  hasRawHttp?: boolean  // Whether raw HTTP is available via API
 }

@@ -8,8 +8,9 @@ import type { EnhancerMatch } from './enhancers'
 import { HeadersView } from './enhancers/claude-messages/components/HeadersView'
 import { RawBodyView } from './enhancers/claude-messages/components/RawBodyView'
 import { RawEventsView } from './enhancers/claude-messages/components/RawEventsView'
+import { FetchedRawHttpView } from './enhancers/claude-messages/components/FetchedRawHttpView'
 import { EnhancedEventsView } from './enhancers/claude-messages/components/EnhancedEventsView'
-import { ViewModeToggle, TagBadge, TagList, StatusBadge, MethodBadge, EventCountBadge } from '@/components'
+import { ViewModeToggle, TagBadge, TagList, StatusBadge, MethodBadge, EventCountBadge, type ViewMode } from '@/components'
 
 type SidebarItem = 
   | { type: 'flow'; flow: Flow; timestamp: string }
@@ -31,9 +32,9 @@ function App() {
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all')
   const [tagFilter, setTagFilter] = useState<Set<string>>(new Set())
 
-  // View mode toggle (raw HTTP vs enhanced view)
-  const [requestViewMode, setRequestViewMode] = useState<'raw' | 'enhanced'>('enhanced')
-  const [responseViewMode, setResponseViewMode] = useState<'raw' | 'enhanced'>('enhanced')
+  // View mode toggle
+  const [requestViewMode, setRequestViewMode] = useState<ViewMode>('enhanced')
+  const [responseViewMode, setResponseViewMode] = useState<ViewMode>('enhanced')
 
   const selectedFlow = flows.find((f) => f.id === selectedFlowId)
   const selectedFlowEvents = selectedFlowId ? events.get(selectedFlowId) || [] : []
@@ -491,13 +492,31 @@ function App() {
                         {selectedFlow.request.url}
                       </span>
                       <TagList tags={selectedFlowTags} />
-                      {selectedFlowEnhancer?.enhancer.RequestBodyComponent && (
-                        <ViewModeToggle value={requestViewMode} onChange={setRequestViewMode} />
-                      )}
+                      <div className="flex-1" />
+                      {(() => {
+                        const modes: ViewMode[] = ['raw', 'http']
+                        if (selectedFlowEnhancer?.enhancer.RequestBodyComponent) modes.push('enhanced')
+                        return <ViewModeToggle value={requestViewMode} onChange={setRequestViewMode} modes={modes} />
+                      })()}
                     </div>
                   </div>
                   <div className="min-w-0">
-                    {requestViewMode === 'enhanced' && selectedFlowEnhancer?.enhancer.RequestBodyComponent && selectedFlow.request.body ? (
+                    {requestViewMode === 'raw' ? (
+                      selectedFlow.hasRawHttp ? (
+                        <FetchedRawHttpView flowId={selectedFlow.id} type="request" />
+                      ) : (
+                        <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                          Raw HTTP not available for streaming responses
+                        </div>
+                      )
+                    ) : requestViewMode === 'http' ? (
+                      <div>
+                        <HeadersView headers={selectedFlow.request.headers} />
+                        {selectedFlow.request.body && (
+                          <RawBodyView body={selectedFlow.request.body} />
+                        )}
+                      </div>
+                    ) : requestViewMode === 'enhanced' && selectedFlowEnhancer?.enhancer.RequestBodyComponent && selectedFlow.request.body ? (
                       <div>
                         <selectedFlowEnhancer.enhancer.RequestBodyComponent
                           flow={selectedFlow}
@@ -534,9 +553,18 @@ function App() {
                             </span>
                           )}
                           <div className="flex-1" />
-                          {(selectedFlowEnhancer?.enhancer.ResponseBodyComponent || selectedFlowEnhancer?.enhancer.EventComponent) && (
-                            <ViewModeToggle value={responseViewMode} onChange={setResponseViewMode} />
-                          )}
+                          {(() => {
+                            const hasEnhancer = selectedFlowEnhancer?.enhancer.ResponseBodyComponent || selectedFlowEnhancer?.enhancer.EventComponent
+                            const hasEvents = selectedFlowEvents.length > 0
+                            // Show all applicable modes - always include raw/http
+                            const modes: ViewMode[] = [
+                              'raw',
+                              'http',
+                              ...(hasEvents ? ['events'] as ViewMode[] : []),
+                              ...(hasEnhancer ? ['enhanced'] as ViewMode[] : [])
+                            ]
+                            return <ViewModeToggle value={responseViewMode} onChange={setResponseViewMode} modes={modes} />
+                          })()}
                         </>
                       ) : (
                         <span className="text-xs text-muted-foreground">Waiting...</span>
@@ -545,54 +573,84 @@ function App() {
                   </div>
                   {selectedFlow.response ? (
                     <div className="min-w-0">
-                      {responseViewMode === 'raw' || !selectedFlowEnhancer ? (
-                        <div>
-                          <HeadersView headers={selectedFlow.response.headers} />
-                          {selectedFlowEvents.length > 0 ? (
-                            <RawEventsView
-                              flow={selectedFlow}
-                              events={selectedFlowEvents}
-                              selectedEventId={selectedEventId}
-                              eventRefs={eventRefs}
-                            />
-                          ) : selectedFlow.response.body ? (
-                            <RawBodyView body={selectedFlow.response.body} />
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div>
-                          {/* Enhanced Events View */}
-                          {(() => {
-                            const EventComponent = selectedFlowEnhancer.enhancer.EventComponent
-                            const ResponseBodyComponent = selectedFlowEnhancer.enhancer.ResponseBodyComponent
-                            
-                            if (selectedFlowEvents.length > 0 && EventComponent) {
-                              return (
-                                <EnhancedEventsView
-                                  flow={selectedFlow}
-                                  events={selectedFlowEvents}
-                                  selectedEventId={selectedEventId}
-                                  eventRefs={eventRefs}
-                                  EventComponent={EventComponent}
-                                  transformEventData={selectedFlowEnhancer.enhancer.transformEventData}
-                                />
-                              )
-                            }
-                            
-                            if (selectedFlow.response.body && ResponseBodyComponent) {
-                              return (
-                                <ResponseBodyComponent
-                                  flow={selectedFlow}
-                                  body={selectedFlow.response.body}
-                                  parsed={selectedFlowEnhancer.enhancer.transformResponseBody?.(selectedFlow.response.body) ?? null}
-                                />
-                              )
-                            }
-                            
-                            return null
-                          })()}
-                        </div>
-                      )}
+                      {(() => {
+                        // Handle fallback for invalid modes
+                        const hasEvents = selectedFlowEvents.length > 0
+                        const effectiveMode = (!hasEvents && responseViewMode === 'events')
+                          ? 'http'
+                          : responseViewMode
+                        
+                        if (effectiveMode === 'raw') {
+                          if (selectedFlow.hasRawHttp) {
+                            return <FetchedRawHttpView flowId={selectedFlow.id} type="response" />
+                          }
+                          // Raw not available - show message
+                          return (
+                            <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                              Raw HTTP not available for streaming responses
+                            </div>
+                          )
+                        }
+                        if (effectiveMode === 'http') {
+                          return (
+                            <div>
+                              <HeadersView headers={selectedFlow.response.headers} />
+                              {selectedFlow.response.body ? (
+                                <RawBodyView body={selectedFlow.response.body} />
+                              ) : null}
+                            </div>
+                          )
+                        }
+                        if (effectiveMode === 'events') {
+                          return (
+                            <div>
+                              <RawEventsView
+                                flow={selectedFlow}
+                                events={selectedFlowEvents}
+                                selectedEventId={selectedEventId}
+                                eventRefs={eventRefs}
+                              />
+                            </div>
+                          )
+                        }
+                        if (effectiveMode === 'enhanced' && selectedFlowEnhancer) {
+                          const EventComponent = selectedFlowEnhancer.enhancer.EventComponent
+                          const ResponseBodyComponent = selectedFlowEnhancer.enhancer.ResponseBodyComponent
+                          
+                          if (selectedFlowEvents.length > 0 && EventComponent) {
+                            return (
+                              <EnhancedEventsView
+                                flow={selectedFlow}
+                                events={selectedFlowEvents}
+                                selectedEventId={selectedEventId}
+                                eventRefs={eventRefs}
+                                EventComponent={EventComponent}
+                                transformEventData={selectedFlowEnhancer.enhancer.transformEventData}
+                              />
+                            )
+                          }
+                          
+                          if (selectedFlow.response.body && ResponseBodyComponent) {
+                            return (
+                              <ResponseBodyComponent
+                                flow={selectedFlow}
+                                body={selectedFlow.response.body}
+                                parsed={selectedFlowEnhancer.enhancer.transformResponseBody?.(selectedFlow.response.body) ?? null}
+                              />
+                            )
+                          }
+                        }
+                        
+                        // Fallback
+                        return (
+                          <div>
+                            <HeadersView headers={selectedFlow.response.headers} />
+                            {selectedFlow.response.body ? (
+                              <RawBodyView body={selectedFlow.response.body} />
+                            ) : null}
+                          </div>
+                        )
+                      })()}
                     </div>
                   ) : (
                     <div className="px-4 pb-4 text-xs text-muted-foreground">

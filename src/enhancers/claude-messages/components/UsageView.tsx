@@ -8,8 +8,8 @@ interface UsageViewProps {
 
 export function UsageView({ usage, defaultExpanded = true }: UsageViewProps) {
   const totalTokens = usage.input_tokens + usage.output_tokens
-  const hasCacheStats = (usage.cache_read_input_tokens && usage.cache_read_input_tokens > 0) ||
-                        (usage.cache_creation_input_tokens && usage.cache_creation_input_tokens > 0)
+  const hasCacheStats = (usage.cache_read_input_tokens ?? 0) > 0 ||
+                        (usage.cache_creation_input_tokens ?? 0) > 0
   
   return (
     <CollapsibleSection

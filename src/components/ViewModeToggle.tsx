@@ -1,38 +1,38 @@
 import { cn } from '@/lib/utils'
 
-type ViewMode = 'raw' | 'enhanced'
+export type ViewMode = 'raw' | 'http' | 'events' | 'enhanced'
 
 interface ViewModeToggleProps {
   value: ViewMode
   onChange: (mode: ViewMode) => void
+  modes: ViewMode[]
   className?: string
 }
 
-export function ViewModeToggle({ value, onChange, className }: ViewModeToggleProps) {
+const modeLabels: Record<ViewMode, string> = {
+  raw: 'Raw',
+  http: 'HTTP',
+  events: 'Events',
+  enhanced: 'Enhanced',
+}
+
+export function ViewModeToggle({ value, onChange, modes, className }: ViewModeToggleProps) {
   return (
     <div className={cn('flex items-center gap-0.5 shrink-0 bg-muted/50 rounded p-0.5', className)}>
-      <button
-        onClick={() => onChange('raw')}
-        className={cn(
-          'px-2 py-1 text-xs rounded transition-colors',
-          value === 'raw'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        )}
-      >
-        Raw
-      </button>
-      <button
-        onClick={() => onChange('enhanced')}
-        className={cn(
-          'px-2 py-1 text-xs rounded transition-colors',
-          value === 'enhanced'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        )}
-      >
-        Enhanced
-      </button>
+      {modes.map((mode) => (
+        <button
+          key={mode}
+          onClick={() => onChange(mode)}
+          className={cn(
+            'px-2 py-1 text-xs rounded transition-colors',
+            value === mode
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {modeLabels[mode]}
+        </button>
+      ))}
     </div>
   )
 }

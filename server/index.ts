@@ -310,6 +310,7 @@ const wss = new WebSocketServer({ server })
 const clients = new Set<WebSocket>()
 const flows = new Map<string, Flow>()
 const events = new Map<string, SSEEvent[]>()
+const rawHttp = new Map<string, { request: string; response: string }>()  // Store raw HTTP by flow ID
 
 wss.on('connection', (ws) => {
   clients.add(ws)
@@ -378,6 +379,23 @@ app.get('/api/stats', (_req, res) => {
     uptime: process.uptime(),
     connectedClients: clients.size
   })
+})
+
+// API to fetch raw HTTP for a flow
+app.get('/api/flows/:id/raw', (req, res) => {
+  const { id } = req.params
+  const raw = rawHttp.get(id)
+  if (!raw) {
+    res.status(404).json({ error: 'Raw HTTP not found' })
+    return
+  }
+  res.json(raw)
+})
+
+// Debug endpoint to list all flows with raw HTTP
+app.get('/api/debug/raw-flows', (_req, res) => {
+  const entries = Array.from(rawHttp.keys())
+  res.json({ count: entries.length, flowIds: entries })
 })
 
 // Handle HTTP proxy requests
@@ -599,6 +617,9 @@ server.on('connect', (req, clientSocket, head) => {
     const bodyStart = headerEnd + 4
     const body = contentLength > 0 ? buffer.slice(bodyStart, bodyStart + contentLength).toString('utf-8') : undefined
 
+    // Capture raw HTTP request before removing from buffer
+    const rawRequest = buffer.slice(0, totalLength).toString('utf-8')
+
     // Remove processed request from buffer
     buffer = buffer.slice(totalLength)
 
@@ -618,8 +639,12 @@ server.on('connect', (req, clientSocket, head) => {
         path,
         headers,
         body
-      }
+      },
+      hasRawHttp: true
     }
+
+    // Initialize raw HTTP storage for this flow
+    rawHttp.set(id, { request: rawRequest, response: '' })
 
     flows.set(id, flow)
     broadcastFlow(flow)
@@ -659,6 +684,8 @@ server.on('connect', (req, clientSocket, head) => {
       // For streaming, send headers immediately and stream to client
       if (isStreaming) {
         flow.isSSE = true // Reuse isSSE for any streaming response
+        flow.hasRawHttp = false // Raw HTTP not available for streaming (binary/large)
+        rawHttp.delete(id) // Remove the raw HTTP entry since we won't have the full response
         events.set(id, [])
         
         let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
@@ -749,7 +776,7 @@ server.on('connect', (req, clientSocket, head) => {
           flows.set(id, flow)
           broadcastFlow(flow)
 
-          // Send response back to client (original compressed body)
+          // Build response header for client
           let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
           for (const [key, value] of Object.entries(proxyRes.headers)) {
             if (value && key !== 'transfer-encoding') {
@@ -758,6 +785,12 @@ server.on('connect', (req, clientSocket, head) => {
           }
           responseHeader += `content-length: ${rawBody.length}\r\n`
           responseHeader += '\r\n'
+
+          // Store raw HTTP response
+          const rawEntry = rawHttp.get(id)
+          if (rawEntry) {
+            rawEntry.response = responseHeader + rawBody.toString('utf-8')
+          }
 
           tlsClient.write(responseHeader)
           tlsClient.write(rawBody)
