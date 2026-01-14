@@ -168,6 +168,11 @@ function App() {
                       <span className="text-xs text-muted-foreground truncate flex-1">
                         {flow.host}
                       </span>
+                      {flow.response?.events && flow.response.events.length > 0 && (
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
+                          {flow.response.events.length}
+                        </span>
+                      )}
                       {flow.response && (
                         <span className={cn('text-xs font-mono px-1.5 py-0.5 rounded', getStatusColor(flow.response.status))}>
                           {flow.response.status}

@@ -550,6 +550,12 @@ server.on('connect', (req, clientSocket, head) => {
       const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
       const isSSE = contentType?.includes('text/event-stream')
       
+      if (isSSE) {
+        console.log(`[SSE] Detected SSE stream for ${host}${path}`)
+        console.log(`[SSE] Content-Type: ${contentType}`)
+        console.log(`[SSE] Content-Encoding: ${contentEncoding || 'none'}`)
+      }
+      
       // Initialize response early for SSE streaming
       flow.response = {
         status: proxyRes.statusCode || 500,
@@ -591,6 +597,7 @@ server.on('connect', (req, clientSocket, head) => {
           const newEvents = sseParser!.processChunk(chunkStr)
           
           if (newEvents.length > 0) {
+            console.log(`[SSE HTTPS] Parsed ${newEvents.length} new events (total: ${flow.response!.events!.length + newEvents.length})`)
             flow.response!.events!.push(...newEvents)
             flow.duration = Date.now() - startTime
             flows.set(id, flow)
@@ -613,8 +620,10 @@ server.on('connect', (req, clientSocket, head) => {
           // Flush any remaining events
           const remainingEvents = sseParser!.flush()
           if (remainingEvents.length > 0) {
+            console.log(`[SSE HTTPS] Flushed ${remainingEvents.length} remaining events`)
             flow.response!.events!.push(...remainingEvents)
           }
+          console.log(`[SSE HTTPS] Stream ended with ${flow.response!.events!.length} total events`)
           flow.response!.body = decompressBody(rawBody, contentEncoding)
           flow.duration = duration
           flows.set(id, flow)

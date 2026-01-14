@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "npm run build && tsx server/index.ts",
-    "server": "tsx server/index.ts"
+    "server": "tsx watch server/index.ts"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.10",
