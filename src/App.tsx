@@ -253,6 +253,9 @@ function App() {
                                       id: {event.id}
                                     </span>
                                   )}
+                                  <span className="text-xs font-mono text-muted-foreground/60 ml-auto">
+                                    {formatTime(event.timestamp)}
+                                  </span>
                                 </div>
                                 <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all px-3 py-2">
                                   {formatBody(event.data)}

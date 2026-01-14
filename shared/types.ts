@@ -11,6 +11,7 @@ export interface SSEEvent {
   data: string
   id?: string
   retry?: string
+  timestamp: string
 }
 
 export interface FlowResponse {

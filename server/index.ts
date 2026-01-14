@@ -128,6 +128,7 @@ function parseSSEEvents(body: string): SSEEvent[] {
     
     if (dataLines.length > 0) {
       event.data = dataLines.join('\n')
+      event.timestamp = new Date().toISOString()
       events.push(event as SSEEvent)
     }
   }
@@ -198,6 +199,7 @@ class SSEStreamParser {
     
     if (dataLines.length > 0) {
       event.data = dataLines.join('\n')
+      event.timestamp = new Date().toISOString()
       return event as SSEEvent
     }
     return null
