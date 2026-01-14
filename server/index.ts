@@ -9,6 +9,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import forge from 'node-forge'
+import type { Flow, FlowRequest, FlowResponse, SSEEvent } from '../shared/types.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = parseInt(process.env.PORT || '9090', 10)
@@ -100,39 +101,7 @@ function generateCertForHost(host: string): tls.SecureContext {
   return ctx
 }
 
-// Flow types
-interface FlowRequest {
-  method: string
-  url: string
-  path: string
-  headers: Record<string, string | string[] | undefined>
-  body?: string
-}
-
-interface SSEEvent {
-  event?: string
-  data: string
-  id?: string
-  retry?: string
-}
-
-interface FlowResponse {
-  status: number
-  statusText: string
-  headers: Record<string, string | string[] | undefined>
-  body?: string
-  events?: SSEEvent[]
-}
-
-interface Flow {
-  id: string
-  timestamp: string
-  host: string
-  type: 'http' | 'https'
-  request: FlowRequest
-  response?: FlowResponse
-  duration?: number
-}
+// Flow types imported from ../shared/types.ts
 
 function parseSSEEvents(body: string): SSEEvent[] {
   const events: SSEEvent[] = []

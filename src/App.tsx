@@ -2,39 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-interface FlowRequest {
-  method: string
-  url: string
-  path: string
-  headers: Record<string, string | string[] | undefined>
-  body?: string
-}
-
-interface SSEEvent {
-  event?: string
-  data: string
-  id?: string
-  retry?: string
-}
-
-interface FlowResponse {
-  status: number
-  statusText: string
-  headers: Record<string, string | string[] | undefined>
-  body?: string
-  events?: SSEEvent[]
-}
-
-interface Flow {
-  id: string
-  timestamp: string
-  host: string
-  type: 'http' | 'https'
-  request: FlowRequest
-  response?: FlowResponse
-  duration?: number
-}
+import type { Flow } from '../shared/types'
 
 function App() {
   const [flows, setFlows] = useState<Flow[]>([])
