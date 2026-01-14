@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import * as Tabs from '@radix-ui/react-tabs'
 import Markdown from 'react-markdown'
 import type { Tool } from '../types'
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface ToolsViewProps {
   tools: Tool[]
@@ -18,7 +18,7 @@ export function ToolsView({ tools, defaultExpanded = true }: ToolsViewProps) {
   return (
     <CollapsibleSection
       title="Tools"
-      color="blue"
+      color={sectionTypeColors.tools}
       defaultExpanded={defaultExpanded}
       contentClassName=""
       headerContent={

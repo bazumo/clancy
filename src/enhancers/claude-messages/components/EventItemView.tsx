@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { SSEEvent, Flow } from '../../../../shared/types'
 import type { EventProps } from '../../types'
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface EventItemViewProps {
   flow: Flow
@@ -56,7 +56,7 @@ export function EventItemView({
   return (
     <CollapsibleSection
       title={event.event || 'message'}
-      color="cyan"
+      color={sectionTypeColors.events}
       level={2}
       defaultExpanded={defaultExpanded}
       hoverEffect

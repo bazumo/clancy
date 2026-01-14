@@ -1,6 +1,6 @@
 import type { Message, ContentBlock as ContentBlockType } from '../types'
 import { ContentBlock } from './ContentBlock'
-import { CollapsibleSection, type SectionColor } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface MessageViewProps {
   message: Message
@@ -8,10 +8,10 @@ interface MessageViewProps {
   defaultExpanded?: boolean
 }
 
-const roleColors: Record<string, SectionColor> = {
-  user: 'red',
-  assistant: 'orange',
-}
+const roleColors = {
+  user: sectionTypeColors.user,
+  assistant: sectionTypeColors.assistant,
+} as const
 
 function hasCache(content: string | ContentBlockType[]): boolean {
   if (typeof content === 'string') return false

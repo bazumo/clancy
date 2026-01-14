@@ -31,6 +31,24 @@ const colorClasses: Record<SectionColor, { border: string; text: string }> = {
   purple:  { border: 'border-l-purple-500',  text: 'text-purple-400' },
 }
 
+// Semantic section types mapped to colors - change colors here to update everywhere
+export const sectionTypeColors = {
+  tools: 'slate',
+  events: 'slate',
+  messages: 'slate',
+  content: 'slate',
+  general: 'slate',
+  headers: 'slate',
+  system: 'slate',
+  usage: 'slate',
+  body: 'slate',
+  user: 'red',
+  assistant: 'emerald',
+  error: 'slate',
+} as const satisfies Record<string, SectionColor>
+
+export type SectionType = keyof typeof sectionTypeColors
+
 // Nesting level affects sticky position and z-index
 const levelClasses = {
   1: 'top-11 z-[9]',  // Top-level sections

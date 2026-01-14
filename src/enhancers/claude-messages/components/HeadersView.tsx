@@ -1,4 +1,4 @@
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface HeadersViewProps {
   headers: Record<string, string | string[] | undefined>
@@ -15,7 +15,7 @@ export function HeadersView({ headers, defaultExpanded = true }: HeadersViewProp
   return (
     <CollapsibleSection
       title="Headers"
-      color="gray"
+      color={sectionTypeColors.headers}
       defaultExpanded={defaultExpanded}
     >
       <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all overflow-x-auto">

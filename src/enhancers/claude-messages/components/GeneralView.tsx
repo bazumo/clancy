@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { ClaudeMessagesRequest } from '../types'
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface GeneralViewProps {
   request: ClaudeMessagesRequest
@@ -11,7 +11,7 @@ export function GeneralView({ request, defaultExpanded = true }: GeneralViewProp
   return (
     <CollapsibleSection
       title="General"
-      color="zinc"
+      color={sectionTypeColors.general}
       defaultExpanded={defaultExpanded}
       headerContent={
         <>

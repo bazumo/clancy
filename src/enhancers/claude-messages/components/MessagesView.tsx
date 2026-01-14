@@ -1,6 +1,6 @@
 import type { Message } from '../types'
 import { MessageView } from './MessageView'
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface MessagesViewProps {
   messages: Message[]
@@ -11,7 +11,7 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
   return (
     <CollapsibleSection
       title="Messages"
-      color="slate"
+      color={sectionTypeColors.messages}
       defaultExpanded={defaultExpanded}
       contentClassName=""
       headerContent={

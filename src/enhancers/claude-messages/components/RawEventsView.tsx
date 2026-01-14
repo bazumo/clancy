@@ -1,6 +1,6 @@
 import type { SSEEvent, Flow } from '../../../../shared/types'
 import { EventItemView } from './EventItemView'
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface RawEventsViewProps {
   flow: Flow
@@ -14,7 +14,7 @@ export function RawEventsView({ flow, events, selectedEventId, eventRefs, defaul
   return (
     <CollapsibleSection
       title="Events"
-      color="cyan"
+      color={sectionTypeColors.events}
       defaultExpanded={defaultExpanded}
       contentClassName="py-2"
       headerContent={

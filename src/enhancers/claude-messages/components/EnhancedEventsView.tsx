@@ -1,7 +1,7 @@
 import type { SSEEvent, Flow } from '../../../../shared/types'
 import type { EventProps } from '../../types'
 import { EventItemView } from './EventItemView'
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface EnhancedEventsViewProps {
   flow: Flow
@@ -25,7 +25,7 @@ export function EnhancedEventsView({
   return (
     <CollapsibleSection
       title="Events"
-      color="cyan"
+      color={sectionTypeColors.events}
       defaultExpanded={defaultExpanded}
       contentClassName=""
       headerContent={

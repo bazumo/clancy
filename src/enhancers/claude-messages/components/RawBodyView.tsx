@@ -1,4 +1,4 @@
-import { CollapsibleSection } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface RawBodyViewProps {
   body: string
@@ -17,7 +17,7 @@ export function RawBodyView({ body, defaultExpanded = true }: RawBodyViewProps) 
   return (
     <CollapsibleSection
       title="Body"
-      color="slate"
+      color={sectionTypeColors.body}
       defaultExpanded={defaultExpanded}
     >
       <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all overflow-x-auto">
