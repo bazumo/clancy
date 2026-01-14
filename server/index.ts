@@ -109,11 +109,19 @@ interface FlowRequest {
   body?: string
 }
 
+interface SSEEvent {
+  event?: string
+  data: string
+  id?: string
+  retry?: string
+}
+
 interface FlowResponse {
   status: number
   statusText: string
   headers: Record<string, string | string[] | undefined>
   body?: string
+  events?: SSEEvent[]
 }
 
 interface Flow {
@@ -124,6 +132,38 @@ interface Flow {
   request: FlowRequest
   response?: FlowResponse
   duration?: number
+}
+
+function parseSSEEvents(body: string): SSEEvent[] {
+  const events: SSEEvent[] = []
+  const rawEvents = body.split(/\n\n+/)
+  
+  for (const rawEvent of rawEvents) {
+    if (!rawEvent.trim()) continue
+    
+    const lines = rawEvent.split('\n')
+    const event: Partial<SSEEvent> = {}
+    const dataLines: string[] = []
+    
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        event.event = line.slice(6).trim()
+      } else if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim())
+      } else if (line.startsWith('id:')) {
+        event.id = line.slice(3).trim()
+      } else if (line.startsWith('retry:')) {
+        event.retry = line.slice(6).trim()
+      }
+    }
+    
+    if (dataLines.length > 0) {
+      event.data = dataLines.join('\n')
+      events.push(event as SSEEvent)
+    }
+  }
+  
+  return events
 }
 
 // Initialize CA
@@ -249,6 +289,7 @@ app.use((req, res) => {
         const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
         const responseBody = decompressBody(rawBody, contentEncoding)
         const duration = Date.now() - startTime
+        const contentType = proxyRes.headers['content-type'] as string | undefined
 
         flow.response = {
           status: proxyRes.statusCode || 500,
@@ -256,6 +297,12 @@ app.use((req, res) => {
           headers: proxyRes.headers as Record<string, string | string[] | undefined>,
           body: responseBody || undefined
         }
+
+        // Parse SSE events if content-type is text/event-stream
+        if (contentType?.includes('text/event-stream') && responseBody) {
+          flow.response.events = parseSSEEvents(responseBody)
+        }
+
         flow.duration = duration
 
         flows.set(id, flow)
@@ -390,6 +437,7 @@ server.on('connect', (req, clientSocket, head) => {
         const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
         const decompressedBody = decompressBody(rawBody, contentEncoding)
         const duration = Date.now() - startTime
+        const contentType = proxyRes.headers['content-type'] as string | undefined
 
         flow.response = {
           status: proxyRes.statusCode || 500,
@@ -397,6 +445,12 @@ server.on('connect', (req, clientSocket, head) => {
           headers: proxyRes.headers as Record<string, string | string[] | undefined>,
           body: decompressedBody || undefined
         }
+
+        // Parse SSE events if content-type is text/event-stream
+        if (contentType?.includes('text/event-stream') && decompressedBody) {
+          flow.response.events = parseSSEEvents(decompressedBody)
+        }
+
         flow.duration = duration
 
         flows.set(id, flow)

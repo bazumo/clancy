@@ -11,11 +11,19 @@ interface FlowRequest {
   body?: string
 }
 
+interface SSEEvent {
+  event?: string
+  data: string
+  id?: string
+  retry?: string
+}
+
 interface FlowResponse {
   status: number
   statusText: string
   headers: Record<string, string | string[] | undefined>
   body?: string
+  events?: SSEEvent[]
 }
 
 interface Flow {
@@ -230,6 +238,11 @@ function App() {
                           <span className="text-xs text-muted-foreground">
                             {selectedFlow.response.statusText}
                           </span>
+                          {selectedFlow.response.events && (
+                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
+                              {selectedFlow.response.events.length} events
+                            </span>
+                          )}
                           {selectedFlow.duration && (
                             <span className="text-xs text-muted-foreground ml-auto font-mono">
                               {selectedFlow.duration}ms
@@ -249,14 +262,39 @@ function App() {
                           {formatHeaders(selectedFlow.response.headers)}
                         </pre>
                       </div>
-                      {selectedFlow.response.body && (
+
+                      {/* SSE Events */}
+                      {selectedFlow.response.events && selectedFlow.response.events.length > 0 ? (
+                        <div>
+                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Events</h3>
+                          <div className="space-y-2">
+                            {selectedFlow.response.events.map((event, idx) => (
+                              <div key={idx} className="border-l-4 border-cyan-500/50">
+                                <div className="bg-muted/30 px-3 py-1.5 flex items-center gap-2">
+                                  <span className="text-xs font-mono text-cyan-400">
+                                    {event.event || 'message'}
+                                  </span>
+                                  {event.id && (
+                                    <span className="text-xs font-mono text-muted-foreground">
+                                      id: {event.id}
+                                    </span>
+                                  )}
+                                </div>
+                                <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all px-3 py-2">
+                                  {formatBody(event.data)}
+                                </pre>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : selectedFlow.response.body ? (
                         <div>
                           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Body</h3>
                           <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all">
                             {formatBody(selectedFlow.response.body)}
                           </pre>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   ) : (
                     <div className="px-4 pb-4 text-xs text-muted-foreground">
