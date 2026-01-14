@@ -14,7 +14,8 @@ function App() {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}`)
+    const host = import.meta.env.DEV ? 'localhost:9090' : window.location.host
+    const ws = new WebSocket(`${protocol}//${host}`)
     wsRef.current = ws
 
     ws.onopen = () => setConnected(true)
@@ -119,36 +120,36 @@ function App() {
                 Waiting for requests...
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-border w-80">
                 {flows.map((flow) => (
                   <button
                     key={flow.id}
                     onClick={() => setSelectedId(flow.id)}
                     className={cn(
-                      'w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors',
+                      'w-80 text-left px-3 py-2.5 hover:bg-muted/50 transition-colors overflow-hidden',
                       selectedId === flow.id && 'bg-muted'
                     )}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={cn('font-mono text-xs font-medium', getMethodColor(flow.request.method))}>
+                    <div className="flex items-center gap-2 mb-1 w-full">
+                      <span className={cn('font-mono text-xs font-medium shrink-0', getMethodColor(flow.request.method))}>
                         {flow.request.method}
                       </span>
-                      <span className="text-xs text-muted-foreground truncate flex-1">
+                      <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                         {flow.host}
                       </span>
                       {flow.response?.events && flow.response.events.length > 0 && (
-                        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
                           {flow.response.events.length}
                         </span>
                       )}
                       {flow.response && (
-                        <span className={cn('text-xs font-mono px-1.5 py-0.5 rounded', getStatusColor(flow.response.status))}>
+                        <span className={cn('text-xs font-mono px-1.5 py-0.5 rounded shrink-0', getStatusColor(flow.response.status))}>
                           {flow.response.status}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground truncate flex-1">
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="font-mono text-xs text-muted-foreground truncate flex-1 min-w-0">
                         {flow.request.path}
                       </span>
                       <span className="text-xs text-muted-foreground/60 shrink-0">
