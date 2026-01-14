@@ -480,7 +480,7 @@ function App() {
         <main className="flex-1 min-w-0 overflow-x-hidden">
           {selectedFlow ? (
             <ScrollArea className="h-full">
-              <div className="flex flex-col min-w-0">
+              <div className="flex flex-col min-w-0" style={{ maxWidth: 'calc(100vw - 320px)' }}>
                 {/* Request Section */}
                 <div className="min-w-0">
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11 overflow-hidden" style={{ width: 'calc(100vw - 320px)' }}>
