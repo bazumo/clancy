@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import * as Tabs from '@radix-ui/react-tabs'
 import Markdown from 'react-markdown'
 import type { Tool } from '../types'
+import { CollapsibleSection } from '@/components'
 
 interface ToolsViewProps {
   tools: Tool[]
@@ -10,43 +11,28 @@ interface ToolsViewProps {
 }
 
 export function ToolsView({ tools, defaultExpanded = true }: ToolsViewProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
   const [selectedTool, setSelectedTool] = useState(tools[0]?.name ?? '')
   
   const activeTool = tools.find(t => t.name === selectedTool) ?? tools[0]
   
   return (
-    <div className="border-l-[6px] border-l-blue-500">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="sticky top-11 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-[9] border-y border-border w-full text-left"
-      >
-        <div className="px-4 h-9 flex items-center gap-2">
-          <svg
-            className={cn(
-              'w-4 h-4 text-blue-400 transition-transform shrink-0',
-              expanded && 'rotate-90'
-            )}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className="text-xs font-medium uppercase tracking-wider text-blue-400">
-            Tools
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {tools.length} tool{tools.length !== 1 ? 's' : ''}
-          </span>
-          {!expanded && (
-            <span className="text-xs text-muted-foreground truncate flex-1 ml-2">
-              {tools.map(t => t.name).join(', ')}
-            </span>
-          )}
-        </div>
-      </button>
-      {expanded && tools.length > 0 && (
+    <CollapsibleSection
+      title="Tools"
+      color="blue"
+      defaultExpanded={defaultExpanded}
+      contentClassName=""
+      headerContent={
+        <span className="text-xs text-muted-foreground">
+          {tools.length} tool{tools.length !== 1 ? 's' : ''}
+        </span>
+      }
+      collapsedContent={
+        <span className="text-xs text-muted-foreground truncate flex-1 ml-2">
+          {tools.map(t => t.name).join(', ')}
+        </span>
+      }
+    >
+      {tools.length > 0 && (
         <Tabs.Root value={selectedTool} onValueChange={setSelectedTool} className="flex flex-col">
           {/* Tool tabs */}
           <div className="border-b border-border bg-muted/30">
@@ -123,6 +109,6 @@ export function ToolsView({ tools, defaultExpanded = true }: ToolsViewProps) {
           )}
         </Tabs.Root>
       )}
-    </div>
+    </CollapsibleSection>
   )
 }

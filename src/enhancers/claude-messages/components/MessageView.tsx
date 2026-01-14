@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { cn } from '@/lib/utils'
 import type { Message, ContentBlock as ContentBlockType } from '../types'
 import { ContentBlock } from './ContentBlock'
+import { CollapsibleSection, type SectionColor } from '@/components'
 
 interface MessageViewProps {
   message: Message
@@ -9,15 +8,9 @@ interface MessageViewProps {
   defaultExpanded?: boolean
 }
 
-const roleColors = {
-  user: {
-    border: 'border-l-red-500',
-    badge: 'text-red-400',
-  },
-  assistant: {
-    border: 'border-l-orange-500',
-    badge: 'text-orange-400',
-  },
+const roleColors: Record<string, SectionColor> = {
+  user: 'red',
+  assistant: 'orange',
 }
 
 function hasCache(content: string | ContentBlockType[]): boolean {
@@ -38,33 +31,19 @@ function getPreview(content: string | ContentBlockType[]): string {
 }
 
 export function MessageView({ message, index, defaultExpanded = true }: MessageViewProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
-  const colors = roleColors[message.role]
+  const color = roleColors[message.role] ?? 'slate'
   const content = message.content
   const cached = hasCache(content)
   
   return (
-    <div className={cn('border-l-[6px]', colors.border)}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="sticky top-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-[8] border-y border-border w-full text-left hover:bg-muted/50 transition-colors"
-      >
-        <div className="px-4 h-9 flex items-center gap-2">
-          <svg
-            className={cn(
-              'w-4 h-4 transition-transform shrink-0',
-              colors.badge,
-              expanded && 'rotate-90'
-            )}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className={cn('text-xs font-medium uppercase tracking-wider', colors.badge)}>
-            {message.role}
-          </span>
+    <CollapsibleSection
+      title={message.role}
+      color={color}
+      level={2}
+      defaultExpanded={defaultExpanded}
+      hoverEffect
+      headerContent={
+        <>
           <span className="text-xs text-muted-foreground font-mono">
             #{index}
           </span>
@@ -73,27 +52,23 @@ export function MessageView({ message, index, defaultExpanded = true }: MessageV
               cached
             </span>
           )}
-          {!expanded && (
-            <span className="text-xs text-muted-foreground truncate flex-1 ml-2">
-              {getPreview(content)}
-            </span>
-          )}
-        </div>
-      </button>
-      {expanded && (
-        <div className="px-4 py-3">
-          {typeof content === 'string' ? (
-            <p className="text-xs whitespace-pre-wrap break-words">{content}</p>
-          ) : (
-            <div className="space-y-2">
-              {content.map((block: ContentBlockType, i: number) => (
-                <ContentBlock key={i} block={block} />
-              ))}
-            </div>
-          )}
+        </>
+      }
+      collapsedContent={
+        <span className="text-xs text-muted-foreground truncate flex-1 ml-2">
+          {getPreview(content)}
+        </span>
+      }
+    >
+      {typeof content === 'string' ? (
+        <p className="text-xs whitespace-pre-wrap break-words">{content}</p>
+      ) : (
+        <div className="space-y-2">
+          {content.map((block: ContentBlockType, i: number) => (
+            <ContentBlock key={i} block={block} />
+          ))}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   )
 }
-

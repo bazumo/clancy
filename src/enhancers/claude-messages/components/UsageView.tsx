@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { cn } from '@/lib/utils'
 import type { Usage } from '../types'
+import { CollapsibleSection } from '@/components'
 
 interface UsageViewProps {
   usage: Usage
@@ -8,33 +7,18 @@ interface UsageViewProps {
 }
 
 export function UsageView({ usage, defaultExpanded = true }: UsageViewProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
-  
   const totalTokens = usage.input_tokens + usage.output_tokens
   const hasCacheStats = (usage.cache_read_input_tokens && usage.cache_read_input_tokens > 0) ||
                         (usage.cache_creation_input_tokens && usage.cache_creation_input_tokens > 0)
   
   return (
-    <div className="border-l-[6px] border-l-teal-500">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="sticky top-11 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-[9] border-y border-border w-full text-left"
-      >
-        <div className="px-4 h-9 flex items-center gap-2">
-          <svg
-            className={cn(
-              'w-4 h-4 text-teal-400 transition-transform shrink-0',
-              expanded && 'rotate-90'
-            )}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className="text-xs font-medium uppercase tracking-wider text-teal-400">
-            Usage
-          </span>
+    <CollapsibleSection
+      title="Usage"
+      color="teal"
+      defaultExpanded={defaultExpanded}
+      contentClassName="px-4 py-3 space-y-3"
+      headerContent={
+        <>
           <span className="text-xs text-muted-foreground">
             {totalTokens.toLocaleString()} tokens
           </span>
@@ -43,58 +27,54 @@ export function UsageView({ usage, defaultExpanded = true }: UsageViewProps) {
               cached
             </span>
           )}
+        </>
+      }
+    >
+      {/* Input Tokens */}
+      <div className="flex items-start gap-3">
+        <span className="text-xs text-muted-foreground w-28 shrink-0">Input Tokens</span>
+        <div>
+          <span className="text-xs font-mono text-foreground">{usage.input_tokens.toLocaleString()}</span>
+          <p className="text-xs text-muted-foreground mt-0.5">Tokens in the request (messages + system)</p>
         </div>
-      </button>
-      {expanded && (
-        <div className="px-4 py-3 space-y-3">
-          {/* Input Tokens */}
-          <div className="flex items-start gap-3">
-            <span className="text-xs text-muted-foreground w-28 shrink-0">Input Tokens</span>
-            <div>
-              <span className="text-xs font-mono text-foreground">{usage.input_tokens.toLocaleString()}</span>
-              <p className="text-xs text-muted-foreground mt-0.5">Tokens in the request (messages + system)</p>
-            </div>
-          </div>
-          
-          {/* Output Tokens */}
-          <div className="flex items-start gap-3">
-            <span className="text-xs text-muted-foreground w-28 shrink-0">Output Tokens</span>
-            <div>
-              <span className="text-xs font-mono text-foreground">{usage.output_tokens.toLocaleString()}</span>
-              <p className="text-xs text-muted-foreground mt-0.5">Tokens in the response</p>
-            </div>
-          </div>
-          
-          {/* Cache Read */}
-          {usage.cache_read_input_tokens !== undefined && usage.cache_read_input_tokens > 0 && (
-            <div className="flex items-start gap-3">
-              <span className="text-xs text-muted-foreground w-28 shrink-0">Cache Read</span>
-              <div>
-                <span className="text-xs font-mono text-amber-400">{usage.cache_read_input_tokens.toLocaleString()}</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Tokens read from cache (reduced cost)</p>
-              </div>
-            </div>
-          )}
-          
-          {/* Cache Created */}
-          {usage.cache_creation_input_tokens !== undefined && usage.cache_creation_input_tokens > 0 && (
-            <div className="flex items-start gap-3">
-              <span className="text-xs text-muted-foreground w-28 shrink-0">Cache Created</span>
-              <div>
-                <span className="text-xs font-mono text-amber-400">{usage.cache_creation_input_tokens.toLocaleString()}</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Tokens written to cache for future requests</p>
-              </div>
-            </div>
-          )}
-          
-          {/* Total */}
-          <div className="flex items-start gap-3 pt-2 border-t border-border">
-            <span className="text-xs text-muted-foreground w-28 shrink-0">Total</span>
-            <span className="text-xs font-mono text-foreground font-medium">{totalTokens.toLocaleString()}</span>
+      </div>
+      
+      {/* Output Tokens */}
+      <div className="flex items-start gap-3">
+        <span className="text-xs text-muted-foreground w-28 shrink-0">Output Tokens</span>
+        <div>
+          <span className="text-xs font-mono text-foreground">{usage.output_tokens.toLocaleString()}</span>
+          <p className="text-xs text-muted-foreground mt-0.5">Tokens in the response</p>
+        </div>
+      </div>
+      
+      {/* Cache Read */}
+      {usage.cache_read_input_tokens !== undefined && usage.cache_read_input_tokens > 0 && (
+        <div className="flex items-start gap-3">
+          <span className="text-xs text-muted-foreground w-28 shrink-0">Cache Read</span>
+          <div>
+            <span className="text-xs font-mono text-amber-400">{usage.cache_read_input_tokens.toLocaleString()}</span>
+            <p className="text-xs text-muted-foreground mt-0.5">Tokens read from cache (reduced cost)</p>
           </div>
         </div>
       )}
-    </div>
+      
+      {/* Cache Created */}
+      {usage.cache_creation_input_tokens !== undefined && usage.cache_creation_input_tokens > 0 && (
+        <div className="flex items-start gap-3">
+          <span className="text-xs text-muted-foreground w-28 shrink-0">Cache Created</span>
+          <div>
+            <span className="text-xs font-mono text-amber-400">{usage.cache_creation_input_tokens.toLocaleString()}</span>
+            <p className="text-xs text-muted-foreground mt-0.5">Tokens written to cache for future requests</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Total */}
+      <div className="flex items-start gap-3 pt-2 border-t border-border">
+        <span className="text-xs text-muted-foreground w-28 shrink-0">Total</span>
+        <span className="text-xs font-mono text-foreground font-medium">{totalTokens.toLocaleString()}</span>
+      </div>
+    </CollapsibleSection>
   )
 }
-
