@@ -46,8 +46,8 @@ function loadOrCreateCA() {
     caCert.validity.notAfter.setFullYear(caCert.validity.notBefore.getFullYear() + 10)
 
     const attrs = [
-      { name: 'commonName', value: 'Claudio Proxy CA' },
-      { name: 'organizationName', value: 'Claudio' }
+      { name: 'commonName', value: 'Claudeoscope Proxy CA' },
+      { name: 'organizationName', value: 'Claudeoscope' }
     ]
     caCert.setSubject(attrs)
     caCert.setIssuer(attrs)
@@ -643,6 +643,6 @@ server.on('connect', (req, clientSocket, head) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`Claudio proxy running on http://localhost:${PORT}`)
+  console.log(`Claudeoscope proxy running on http://localhost:${PORT}`)
   console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
 })

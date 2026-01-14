@@ -249,7 +249,7 @@ function App() {
       {/* Top Bar */}
       <header className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-medium tracking-tight">claudio</h1>
+          <h1 className="text-sm font-medium tracking-tight">Claudeoscope</h1>
           <div className={cn(
             'w-1.5 h-1.5 rounded-full',
             connected ? 'bg-emerald-400' : 'bg-muted-foreground'
@@ -525,13 +525,13 @@ function App() {
               <div className="flex flex-col min-w-0">
                 {/* Request Section */}
                 <div className="min-w-0">
-                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
+                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11 overflow-hidden" style={{ width: 'calc(100vw - 320px)' }}>
                     <div className="px-4 h-full flex items-center gap-3">
-                      <span className="text-xs font-medium uppercase tracking-wider text-violet-400">Request</span>
-                      <span className={cn('font-mono text-xs font-medium', getMethodColor(selectedFlow.request.method))}>
+                      <span className="text-xs font-medium uppercase tracking-wider text-violet-400 shrink-0">Request</span>
+                      <span className={cn('font-mono text-xs font-medium shrink-0', getMethodColor(selectedFlow.request.method))}>
                         {selectedFlow.request.method}
                       </span>
-                      <span className="font-mono text-xs text-muted-foreground truncate flex-1 min-w-0">
+                      <span className="font-mono text-xs text-muted-foreground truncate">
                         {selectedFlow.request.url}
                       </span>
                       {/* Tags */}
@@ -596,23 +596,23 @@ function App() {
                 {/* Response Section */}
                 <div className="min-w-0">
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
-                    <div className="px-4 h-full flex items-center gap-3">
-                      <span className="text-xs font-medium uppercase tracking-wider text-amber-400">Response</span>
+                    <div className="px-4 h-full flex items-center gap-3 min-w-0 overflow-hidden">
+                      <span className="text-xs font-medium uppercase tracking-wider text-amber-400 shrink-0">Response</span>
                       {selectedFlow.response ? (
                         <>
-                          <span className={cn('font-mono text-xs font-medium px-1.5 py-0.5 rounded', getStatusColor(selectedFlow.response.status))}>
+                          <span className={cn('font-mono text-xs font-medium px-1.5 py-0.5 rounded shrink-0', getStatusColor(selectedFlow.response.status))}>
                             {selectedFlow.response.status}
                           </span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground shrink-0">
                             {selectedFlow.response.statusText}
                           </span>
                           {selectedFlow.isSSE && selectedFlowEvents.length > 0 && (
-                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
+                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
                               {selectedFlowEvents.length} events
                             </span>
                           )}
                           {selectedFlow.duration && (
-                            <span className="text-xs text-muted-foreground font-mono">
+                            <span className="text-xs text-muted-foreground font-mono shrink-0">
                               {selectedFlow.duration}ms
                             </span>
                           )}

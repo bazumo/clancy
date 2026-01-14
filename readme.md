@@ -1,6 +1,6 @@
-# Claudio
+# Claudeoscope
 
-Claudio is a lightweight proxy server with a web UI for monitoring HTTP/HTTPS requests from Claude Code and other applications.
+Claudeoscope is a lightweight proxy server with a web UI for monitoring HTTP/HTTPS requests from Claude Code and other applications.
 
 ## Quick Start
 
