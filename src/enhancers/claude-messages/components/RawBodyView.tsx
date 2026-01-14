@@ -16,18 +16,7 @@ function formatBody(body: string): string {
 
 export function RawBodyView({ body, defaultExpanded = true }: RawBodyViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  
-  // Try to get a size estimate
-  let sizeText = ''
-  try {
-    const parsed = JSON.parse(body)
-    if (typeof parsed === 'object' && parsed !== null) {
-      const keys = Object.keys(parsed)
-      sizeText = `${keys.length} key${keys.length !== 1 ? 's' : ''}`
-    }
-  } catch {
-    sizeText = `${body.length} chars`
-  }
+
   
   return (
     <div className="border-l-[6px] border-l-slate-500">
@@ -49,9 +38,6 @@ export function RawBodyView({ body, defaultExpanded = true }: RawBodyViewProps) 
           </svg>
           <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
             Body
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {sizeText}
           </span>
         </div>
       </button>

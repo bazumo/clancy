@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { SSEEvent, Flow } from '../../../../shared/types'
 import type { EventProps } from '../../types'
+import { EventItemView } from './EventItemView'
 
 interface EnhancedEventsViewProps {
   flow: Flow
@@ -51,9 +52,9 @@ export function EnhancedEventsView({
         </div>
       </button>
       {expanded && (
-        <div className="py-2">
+        <div className="">
           <div className="space-y-0">
-            {events.map((event) => (
+            {events.map((event, index) => (
               <div
                 key={event.eventId}
                 ref={(el) => {
@@ -63,15 +64,14 @@ export function EnhancedEventsView({
                     eventRefs.current.delete(event.eventId)
                   }
                 }}
-                className={cn(
-                  'border-l-4 border-cyan-500/50 ml-4 transition-colors px-3 py-2',
-                  selectedEventId === event.eventId && 'border-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-500/30'
-                )}
               >
-                <EventComponent
+                <EventItemView
                   flow={flow}
                   event={event}
-                  parsed={transformEventData?.(event.data) ?? null}
+                  index={index}
+                  isSelected={selectedEventId === event.eventId}
+                  EventComponent={EventComponent}
+                  transformEventData={transformEventData}
                 />
               </div>
             ))}
@@ -81,4 +81,3 @@ export function EnhancedEventsView({
     </div>
   )
 }
-

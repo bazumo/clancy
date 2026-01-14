@@ -7,7 +7,7 @@ interface UsageViewProps {
   defaultExpanded?: boolean
 }
 
-export function UsageView({ usage, defaultExpanded = false }: UsageViewProps) {
+export function UsageView({ usage, defaultExpanded = true }: UsageViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   
   const totalTokens = usage.input_tokens + usage.output_tokens

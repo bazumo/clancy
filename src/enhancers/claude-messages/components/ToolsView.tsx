@@ -7,7 +7,7 @@ interface ToolsViewProps {
   defaultExpanded?: boolean
 }
 
-export function ToolsView({ tools, defaultExpanded = false }: ToolsViewProps) {
+export function ToolsView({ tools, defaultExpanded = true }: ToolsViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   
   return (

@@ -524,7 +524,7 @@ function App() {
             <ScrollArea className="h-full">
               <div className="flex flex-col min-w-0">
                 {/* Request Section */}
-                <div className="border-l-[8px] border-violet-500 min-w-0">
+                <div className="min-w-0">
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
                     <div className="px-4 h-full flex items-center gap-3">
                       <span className="text-xs font-medium uppercase tracking-wider text-violet-400">Request</span>
@@ -594,7 +594,7 @@ function App() {
                 </div>
 
                 {/* Response Section */}
-                <div className="border-l-[8px] border-amber-400 min-w-0">
+                <div className="min-w-0">
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
                     <div className="px-4 h-full flex items-center gap-3">
                       <span className="text-xs font-medium uppercase tracking-wider text-amber-400">Response</span>
@@ -657,6 +657,7 @@ function App() {
                           <HeadersView headers={selectedFlow.response.headers} />
                           {selectedFlowEvents.length > 0 ? (
                             <RawEventsView
+                              flow={selectedFlow}
                               events={selectedFlowEvents}
                               selectedEventId={selectedEventId}
                               eventRefs={eventRefs}

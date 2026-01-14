@@ -7,7 +7,7 @@ interface GeneralViewProps {
   defaultExpanded?: boolean
 }
 
-export function GeneralView({ request, defaultExpanded = false }: GeneralViewProps) {
+export function GeneralView({ request, defaultExpanded = true }: GeneralViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   
   return (

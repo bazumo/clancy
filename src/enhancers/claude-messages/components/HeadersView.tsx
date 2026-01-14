@@ -13,9 +13,8 @@ function formatHeaders(headers: Record<string, string | string[] | undefined>): 
     .join('\n')
 }
 
-export function HeadersView({ headers, defaultExpanded = false }: HeadersViewProps) {
+export function HeadersView({ headers, defaultExpanded = true }: HeadersViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const headerCount = Object.keys(headers).filter(k => headers[k] !== undefined).length
   
   return (
     <div className="border-l-[6px] border-l-gray-500">
@@ -38,9 +37,7 @@ export function HeadersView({ headers, defaultExpanded = false }: HeadersViewPro
           <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
             Headers
           </span>
-          <span className="text-xs text-muted-foreground">
-            {headerCount} header{headerCount !== 1 ? 's' : ''}
-          </span>
+        
         </div>
       </button>
       {expanded && (
