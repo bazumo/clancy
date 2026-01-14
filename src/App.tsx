@@ -9,6 +9,7 @@ import { HeadersView } from './enhancers/claude-messages/components/HeadersView'
 import { RawBodyView } from './enhancers/claude-messages/components/RawBodyView'
 import { RawEventsView } from './enhancers/claude-messages/components/RawEventsView'
 import { EnhancedEventsView } from './enhancers/claude-messages/components/EnhancedEventsView'
+import { ViewModeToggle, TagBadge, TagList, StatusBadge, MethodBadge, EventCountBadge } from '@/components'
 
 type SidebarItem = 
   | { type: 'flow'; flow: Flow; timestamp: string }
@@ -223,25 +224,6 @@ function App() {
     return `${time}`
   }
 
-  const getStatusColor = (status?: number) => {
-    if (!status) return 'bg-muted text-muted-foreground'
-    if (status >= 200 && status < 300) return 'bg-emerald-500/15 text-emerald-400'
-    if (status >= 400 && status < 500) return 'bg-amber-500/15 text-amber-400'
-    if (status >= 500) return 'bg-red-500/15 text-red-400'
-    return 'bg-muted text-muted-foreground'
-  }
-
-  const getMethodColor = (method: string) => {
-    switch (method) {
-      case 'GET': return 'text-blue-400'
-      case 'POST': return 'text-green-400'
-      case 'PUT': return 'text-amber-400'
-      case 'DELETE': return 'text-red-400'
-      case 'CONNECT': return 'text-purple-400'
-      default: return 'text-muted-foreground'
-    }
-  }
-
   const totalEvents = Array.from(events.values()).reduce((sum, arr) => sum + arr.length, 0)
 
   return (
@@ -373,8 +355,10 @@ function App() {
                     <label className="text-xs text-muted-foreground mb-1 block">Tags</label>
                     <div className="flex flex-wrap gap-1">
                       {uniqueTags.map((tag) => (
-                        <button
+                        <TagBadge
                           key={tag}
+                          tag={tag}
+                          selected={tagFilter.has(tag)}
                           onClick={() => {
                             const newFilter = new Set(tagFilter)
                             if (newFilter.has(tag)) {
@@ -384,15 +368,7 @@ function App() {
                             }
                             setTagFilter(newFilter)
                           }}
-                          className={cn(
-                            'px-2 py-0.5 text-xs rounded transition-colors',
-                            tagFilter.has(tag)
-                              ? 'bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/50'
-                              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                          )}
-                        >
-                          {tag}
-                        </button>
+                        />
                       ))}
                     </div>
                   </div>
@@ -438,22 +414,12 @@ function App() {
                     )}
                   >
                     <div className="flex items-center gap-2 mb-1 w-full">
-                      <span className={cn('font-mono text-xs font-medium shrink-0', getMethodColor(flow.request.method))}>
-                        {flow.request.method}
-                      </span>
+                      <MethodBadge method={flow.request.method} className="shrink-0" />
                       <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                         {flow.host}
                       </span>
-                          {flow.isSSE && flowEventCount > 0 && (
-                        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
-                              {flowEventCount}
-                        </span>
-                      )}
-                      {flow.response && (
-                        <span className={cn('text-xs font-mono px-1.5 py-0.5 rounded shrink-0', getStatusColor(flow.response.status))}>
-                          {flow.response.status}
-                        </span>
-                      )}
+                      {flow.isSSE && <EventCountBadge count={flowEventCount} />}
+                      {flow.response && <StatusBadge status={flow.response.status} className="shrink-0" />}
                     </div>
                     <div className="flex items-center gap-2 w-full">
                       <span className="font-mono text-xs text-muted-foreground truncate flex-1 min-w-0">
@@ -463,15 +429,7 @@ function App() {
                         {formatTime(flow.timestamp)}
                       </span>
                     </div>
-                    {tags.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1 flex-wrap">
-                        {tags.map((tag) => (
-                          <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-400">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <TagList tags={tags} className="mt-1 flex-wrap" />
                   </button>
                     )
                   } else {
@@ -528,48 +486,13 @@ function App() {
                   <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11 overflow-hidden" style={{ width: 'calc(100vw - 320px)' }}>
                     <div className="px-4 h-full flex items-center gap-3">
                       <span className="text-xs font-medium uppercase tracking-wider text-violet-400 shrink-0">Request</span>
-                      <span className={cn('font-mono text-xs font-medium shrink-0', getMethodColor(selectedFlow.request.method))}>
-                        {selectedFlow.request.method}
-                      </span>
+                      <MethodBadge method={selectedFlow.request.method} className="shrink-0" />
                       <span className="font-mono text-xs text-muted-foreground truncate">
                         {selectedFlow.request.url}
                       </span>
-                      {/* Tags */}
-                      {selectedFlowTags.length > 0 && (
-                        <div className="flex items-center gap-1 shrink-0">
-                          {selectedFlowTags.map((tag) => (
-                            <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-400">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {/* View Toggle */}
+                      <TagList tags={selectedFlowTags} />
                       {selectedFlowEnhancer?.enhancer.RequestBodyComponent && (
-                        <div className="flex items-center gap-0.5 shrink-0 bg-muted/50 rounded p-0.5">
-                          <button
-                            onClick={() => setRequestViewMode('raw')}
-                            className={cn(
-                              'px-2 py-1 text-xs rounded transition-colors',
-                              requestViewMode === 'raw'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            Raw
-                          </button>
-                          <button
-                            onClick={() => setRequestViewMode('enhanced')}
-                            className={cn(
-                              'px-2 py-1 text-xs rounded transition-colors',
-                              requestViewMode === 'enhanced'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            Enhanced
-                          </button>
-                        </div>
+                        <ViewModeToggle value={requestViewMode} onChange={setRequestViewMode} />
                       )}
                     </div>
                   </div>
@@ -600,49 +523,19 @@ function App() {
                       <span className="text-xs font-medium uppercase tracking-wider text-amber-400 shrink-0">Response</span>
                       {selectedFlow.response ? (
                         <>
-                          <span className={cn('font-mono text-xs font-medium px-1.5 py-0.5 rounded shrink-0', getStatusColor(selectedFlow.response.status))}>
-                            {selectedFlow.response.status}
-                          </span>
+                          <StatusBadge status={selectedFlow.response.status} className="shrink-0" />
                           <span className="text-xs text-muted-foreground shrink-0">
                             {selectedFlow.response.statusText}
                           </span>
-                          {selectedFlow.isSSE && selectedFlowEvents.length > 0 && (
-                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
-                              {selectedFlowEvents.length} events
-                            </span>
-                          )}
+                          {selectedFlow.isSSE && <EventCountBadge count={selectedFlowEvents.length} suffix="events" />}
                           {selectedFlow.duration && (
                             <span className="text-xs text-muted-foreground font-mono shrink-0">
                               {selectedFlow.duration}ms
                             </span>
                           )}
                           <div className="flex-1" />
-                          {/* View Toggle for Response */}
                           {(selectedFlowEnhancer?.enhancer.ResponseBodyComponent || selectedFlowEnhancer?.enhancer.EventComponent) && (
-                            <div className="flex items-center gap-0.5 shrink-0 bg-muted/50 rounded p-0.5">
-                              <button
-                                onClick={() => setResponseViewMode('raw')}
-                                className={cn(
-                                  'px-2 py-1 text-xs rounded transition-colors',
-                                  responseViewMode === 'raw'
-                                    ? 'bg-background text-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                )}
-                              >
-                                Raw
-                              </button>
-                              <button
-                                onClick={() => setResponseViewMode('enhanced')}
-                                className={cn(
-                                  'px-2 py-1 text-xs rounded transition-colors',
-                                  responseViewMode === 'enhanced'
-                                    ? 'bg-background text-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                )}
-                              >
-                                Enhanced
-                              </button>
-                            </div>
+                            <ViewModeToggle value={responseViewMode} onChange={setResponseViewMode} />
                           )}
                         </>
                       ) : (

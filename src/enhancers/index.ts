@@ -3,4 +3,5 @@ export * from './registry'
 
 // Import and register all enhancers
 import './claude-messages'
+import './bedrock-messages'
 
