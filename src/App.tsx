@@ -5,6 +5,10 @@ import { cn } from '@/lib/utils'
 import type { Flow, SSEEvent } from '../shared/types'
 import { getFlowTags, getPrimaryEnhancer } from './enhancers'
 import type { EnhancerMatch } from './enhancers'
+import { HeadersView } from './enhancers/claude-messages/components/HeadersView'
+import { RawBodyView } from './enhancers/claude-messages/components/RawBodyView'
+import { RawEventsView } from './enhancers/claude-messages/components/RawEventsView'
+import { EnhancedEventsView } from './enhancers/claude-messages/components/EnhancedEventsView'
 
 type SidebarItem = 
   | { type: 'flow'; flow: Flow; timestamp: string }
@@ -235,22 +239,6 @@ function App() {
       case 'DELETE': return 'text-red-400'
       case 'CONNECT': return 'text-purple-400'
       default: return 'text-muted-foreground'
-    }
-  }
-
-  const formatHeaders = (headers: Record<string, string | string[] | undefined>) => {
-    return Object.entries(headers)
-      .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-      .join('\n')
-  }
-
-  const formatBody = (body?: string) => {
-    if (!body) return ''
-    try {
-      return JSON.stringify(JSON.parse(body), null, 2)
-    } catch {
-      return body
     }
   }
 
@@ -531,19 +519,19 @@ function App() {
         </aside>
 
         {/* Main Area - Flow Detail */}
-        <main className="flex-1 min-w-0 overflow-hidden">
+        <main className="flex-1 min-w-0 overflow-x-hidden">
           {selectedFlow ? (
             <ScrollArea className="h-full">
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 {/* Request Section */}
-                <div className="border-l-[8px] border-violet-500">
-                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border">
-                    <div className="px-4 py-3 flex items-center gap-3">
+                <div className="border-l-[8px] border-violet-500 min-w-0">
+                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
+                    <div className="px-4 h-full flex items-center gap-3">
                       <span className="text-xs font-medium uppercase tracking-wider text-violet-400">Request</span>
                       <span className={cn('font-mono text-xs font-medium', getMethodColor(selectedFlow.request.method))}>
                         {selectedFlow.request.method}
                       </span>
-                      <span className="font-mono text-xs text-muted-foreground truncate flex-1">
+                      <span className="font-mono text-xs text-muted-foreground truncate flex-1 min-w-0">
                         {selectedFlow.request.url}
                       </span>
                       {/* Tags */}
@@ -585,9 +573,9 @@ function App() {
                       )}
                     </div>
                   </div>
-                  <div className="px-4 pb-4">
+                  <div className="min-w-0">
                     {requestViewMode === 'enhanced' && selectedFlowEnhancer?.enhancer.RequestBodyComponent && selectedFlow.request.body ? (
-                      <div className="mt-4">
+                      <div>
                         <selectedFlowEnhancer.enhancer.RequestBodyComponent
                           flow={selectedFlow}
                           body={selectedFlow.request.body}
@@ -595,30 +583,20 @@ function App() {
                         />
                       </div>
                     ) : (
-                      <>
-                        <div className="mb-4">
-                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Headers</h3>
-                          <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all">
-                            {formatHeaders(selectedFlow.request.headers)}
-                          </pre>
-                        </div>
+                      <div>
+                        <HeadersView headers={selectedFlow.request.headers} />
                         {selectedFlow.request.body && (
-                          <div>
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Body</h3>
-                            <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all">
-                              {formatBody(selectedFlow.request.body)}
-                            </pre>
-                          </div>
+                          <RawBodyView body={selectedFlow.request.body} />
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {/* Response Section */}
-                <div className="border-l-[8px] border-amber-400">
-                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border">
-                    <div className="px-4 py-3 flex items-center gap-3">
+                <div className="border-l-[8px] border-amber-400 min-w-0">
+                  <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
+                    <div className="px-4 h-full flex items-center gap-3">
                       <span className="text-xs font-medium uppercase tracking-wider text-amber-400">Response</span>
                       {selectedFlow.response ? (
                         <>
@@ -673,67 +651,22 @@ function App() {
                     </div>
                   </div>
                   {selectedFlow.response ? (
-                    <div className="px-4 pb-4">
+                    <div className="min-w-0">
                       {responseViewMode === 'raw' || !selectedFlowEnhancer ? (
-                        <>
-                          <div className="mb-4">
-                            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Headers</h3>
-                            <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all">
-                              {formatHeaders(selectedFlow.response.headers)}
-                            </pre>
-                          </div>
-
-                          {/* SSE Events - Raw view */}
+                        <div>
+                          <HeadersView headers={selectedFlow.response.headers} />
                           {selectedFlowEvents.length > 0 ? (
-                            <div>
-                              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Events</h3>
-                              <div className="space-y-2">
-                                {selectedFlowEvents.map((event) => (
-                                  <div
-                                    key={event.eventId}
-                                    ref={(el) => {
-                                      if (el) {
-                                        eventRefs.current.set(event.eventId, el)
-                                      } else {
-                                        eventRefs.current.delete(event.eventId)
-                                      }
-                                    }}
-                                    className={cn(
-                                      'border-l-4 border-cyan-500/50 transition-colors',
-                                      selectedEventId === event.eventId && 'border-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-500/30'
-                                    )}
-                                  >
-                                    <div className="bg-muted/30 px-3 py-1.5 flex items-center gap-2">
-                                      <span className="text-xs font-mono text-cyan-400">
-                                        {event.event || 'message'}
-                                      </span>
-                                      {event.id && (
-                                        <span className="text-xs font-mono text-muted-foreground">
-                                          id: {event.id}
-                                        </span>
-                                      )}
-                                      <span className="text-xs font-mono text-muted-foreground/60 ml-auto">
-                                        {formatTime(event.timestamp)}
-                                      </span>
-                                    </div>
-                                    <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all px-3 py-2">
-                                      {formatBody(event.data)}
-                                    </pre>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                            <RawEventsView
+                              events={selectedFlowEvents}
+                              selectedEventId={selectedEventId}
+                              eventRefs={eventRefs}
+                            />
                           ) : selectedFlow.response.body ? (
-                            <div>
-                              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Body</h3>
-                              <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all">
-                                {formatBody(selectedFlow.response.body)}
-                              </pre>
-                            </div>
+                            <RawBodyView body={selectedFlow.response.body} />
                           ) : null}
-                        </>
+                        </div>
                       ) : (
-                        <div className="mt-4">
+                        <div>
                           {/* Enhanced Events View */}
                           {(() => {
                             const EventComponent = selectedFlowEnhancer.enhancer.EventComponent
@@ -741,33 +674,14 @@ function App() {
                             
                             if (selectedFlowEvents.length > 0 && EventComponent) {
                               return (
-                                <div>
-                                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Events</h3>
-                                  <div className="space-y-2">
-                                    {selectedFlowEvents.map((event) => (
-                                      <div
-                                        key={event.eventId}
-                                        ref={(el) => {
-                                          if (el) {
-                                            eventRefs.current.set(event.eventId, el)
-                                          } else {
-                                            eventRefs.current.delete(event.eventId)
-                                          }
-                                        }}
-                                        className={cn(
-                                          'border-l-4 border-cyan-500/50 transition-colors px-3 py-2',
-                                          selectedEventId === event.eventId && 'border-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-500/30'
-                                        )}
-                                      >
-                                        <EventComponent
-                                          flow={selectedFlow}
-                                          event={event}
-                                          parsed={selectedFlowEnhancer.enhancer.transformEventData?.(event.data) ?? null}
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
+                                <EnhancedEventsView
+                                  flow={selectedFlow}
+                                  events={selectedFlowEvents}
+                                  selectedEventId={selectedEventId}
+                                  eventRefs={eventRefs}
+                                  EventComponent={EventComponent}
+                                  transformEventData={selectedFlowEnhancer.enhancer.transformEventData}
+                                />
                               )
                             }
                             

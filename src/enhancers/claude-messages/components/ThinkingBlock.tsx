@@ -17,7 +17,7 @@ export function ThinkingBlock({ block, defaultExpanded = false }: ThinkingBlockP
     <div className="border border-purple-500/30 rounded-md overflow-hidden bg-purple-500/5">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-3 py-2 flex items-center gap-2 hover:bg-purple-500/10 transition-colors text-left"
+        className="w-full px-3 h-9 flex items-center gap-2 hover:bg-purple-500/10 transition-colors text-left"
       >
         <svg
           className={cn(

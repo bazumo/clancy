@@ -12,11 +12,6 @@ export function ContentBlock({ block, compact = false }: ContentBlockProps) {
     case 'text':
       return (
         <div className={cn('text-xs', compact ? 'inline' : 'my-1')}>
-          {block.cache_control && (
-            <span className="text-xs px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 mr-2">
-              cached
-            </span>
-          )}
           <span className="whitespace-pre-wrap break-words">{block.text}</span>
         </div>
       )
