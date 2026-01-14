@@ -101,45 +101,14 @@ function generateCertForHost(host: string): tls.SecureContext {
   return ctx
 }
 
-// Flow types imported from ../shared/types.ts
-
-function parseSSEEvents(body: string): SSEEvent[] {
-  const events: SSEEvent[] = []
-  const rawEvents = body.split(/\n\n+/)
-  
-  for (const rawEvent of rawEvents) {
-    if (!rawEvent.trim()) continue
-    
-    const lines = rawEvent.split('\n')
-    const event: Partial<SSEEvent> = {}
-    const dataLines: string[] = []
-    
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        event.event = line.slice(6).trim()
-      } else if (line.startsWith('data:')) {
-        dataLines.push(line.slice(5).trim())
-      } else if (line.startsWith('id:')) {
-        event.id = line.slice(3).trim()
-      } else if (line.startsWith('retry:')) {
-        event.retry = line.slice(6).trim()
-      }
-    }
-    
-    if (dataLines.length > 0) {
-      event.data = dataLines.join('\n')
-      event.timestamp = new Date().toISOString()
-      events.push(event as SSEEvent)
-    }
-  }
-  
-  return events
-}
-
 // Incremental SSE parser for streaming
 class SSEStreamParser {
   private buffer = ''
-  private events: SSEEvent[] = []
+  private flowId: string
+  
+  constructor(flowId: string) {
+    this.flowId = flowId
+  }
   
   // Process a chunk, returns any newly completed events
   processChunk(chunk: string): SSEEvent[] {
@@ -158,7 +127,6 @@ class SSEStreamParser {
       
       const event = this.parseEvent(part)
       if (event) {
-        this.events.push(event)
         newEvents.push(event)
       }
     }
@@ -174,7 +142,6 @@ class SSEStreamParser {
     this.buffer = ''
     
     if (event) {
-      this.events.push(event)
       return [event]
     }
     return []
@@ -182,7 +149,10 @@ class SSEStreamParser {
   
   private parseEvent(raw: string): SSEEvent | null {
     const lines = raw.split('\n')
-    const event: Partial<SSEEvent> = {}
+    const event: Partial<SSEEvent> = {
+      eventId: generateId(),
+      flowId: this.flowId
+    }
     const dataLines: string[] = []
     
     for (const line of lines) {
@@ -204,10 +174,6 @@ class SSEStreamParser {
     }
     return null
   }
-  
-  getAllEvents(): SSEEvent[] {
-    return this.events
-  }
 }
 
 // Initialize CA
@@ -219,16 +185,31 @@ const wss = new WebSocketServer({ server })
 
 const clients = new Set<WebSocket>()
 const flows = new Map<string, Flow>()
+const events = new Map<string, SSEEvent[]>()
 
 wss.on('connection', (ws) => {
   clients.add(ws)
   const existingFlows = Array.from(flows.values()).slice(-100)
-  ws.send(JSON.stringify({ type: 'init', flows: existingFlows }))
+  // Convert events Map to Record for JSON serialization
+  const existingEvents: Record<string, SSEEvent[]> = {}
+  for (const [flowId, flowEvents] of events.entries()) {
+    existingEvents[flowId] = flowEvents
+  }
+  ws.send(JSON.stringify({ type: 'init', flows: existingFlows, events: existingEvents }))
   ws.on('close', () => clients.delete(ws))
 })
 
-function broadcast(flow: Flow) {
+function broadcastFlow(flow: Flow) {
   const message = JSON.stringify({ type: 'flow', flow })
+  clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message)
+    }
+  })
+}
+
+function broadcastEvent(flowId: string, event: SSEEvent) {
+  const message = JSON.stringify({ type: 'event', flowId, event })
   clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message)
@@ -308,7 +289,7 @@ app.use((req, res) => {
     }
 
     flows.set(id, flow)
-    broadcast(flow)
+    broadcastFlow(flow)
     requestCount++
 
     const options: http.RequestOptions = {
@@ -324,45 +305,40 @@ app.use((req, res) => {
       const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
       const isSSE = contentType?.includes('text/event-stream')
       
-      // Initialize response early for SSE streaming
+      // Initialize response
       flow.response = {
         status: proxyRes.statusCode || 500,
         statusText: proxyRes.statusMessage || '',
         headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-        body: undefined,
-        events: isSSE ? [] : undefined
+        body: undefined
       }
       
-      // Broadcast initial response state for SSE
+      // Mark flow as SSE and broadcast initial state
       if (isSSE) {
+        flow.isSSE = true
+        events.set(id, [])
         flows.set(id, flow)
-        broadcast(flow)
+        broadcastFlow(flow)
       }
       
       const responseChunks: Buffer[] = []
-      const sseParser = isSSE ? new SSEStreamParser() : null
-      let lastBroadcast = Date.now()
+      const sseParser = isSSE ? new SSEStreamParser(id) : null
 
       proxyRes.on('data', (chunk: Buffer) => {
         responseChunks.push(chunk)
         res.write(chunk)
         
-        if (isSSE) {
+        if (isSSE && sseParser) {
           // Parse SSE events incrementally
           const chunkStr = contentEncoding ? decompressBody(chunk, contentEncoding) : chunk.toString('utf-8')
-          const newEvents = sseParser!.processChunk(chunkStr)
+          const newEvents = sseParser.processChunk(chunkStr)
           
-          if (newEvents.length > 0) {
-            flow.response!.events!.push(...newEvents)
-            flow.duration = Date.now() - startTime
-            flows.set(id, flow)
-            
-            // Throttle broadcasts to avoid overwhelming clients (max every 50ms)
-            const now = Date.now()
-            if (now - lastBroadcast >= 50) {
-              broadcast(flow)
-              lastBroadcast = now
-            }
+          // Broadcast each event individually
+          for (const event of newEvents) {
+            const flowEvents = events.get(id) || []
+            flowEvents.push(event)
+            events.set(id, flowEvents)
+            broadcastEvent(id, event)
           }
         }
       })
@@ -372,16 +348,19 @@ app.use((req, res) => {
         const rawBody = Buffer.concat(responseChunks)
         const duration = Date.now() - startTime
 
-        if (isSSE) {
+        if (isSSE && sseParser) {
           // Flush any remaining events
-          const remainingEvents = sseParser!.flush()
-          if (remainingEvents.length > 0) {
-            flow.response!.events!.push(...remainingEvents)
+          const remainingEvents = sseParser.flush()
+          for (const event of remainingEvents) {
+            const flowEvents = events.get(id) || []
+            flowEvents.push(event)
+            events.set(id, flowEvents)
+            broadcastEvent(id, event)
           }
           flow.response!.body = decompressBody(rawBody, contentEncoding)
           flow.duration = duration
           flows.set(id, flow)
-          broadcast(flow) // Final broadcast
+          broadcastFlow(flow) // Final flow update with duration
         } else {
           // Non-SSE: original behavior
           const responseBody = decompressBody(rawBody, contentEncoding)
@@ -394,7 +373,7 @@ app.use((req, res) => {
           }
           flow.duration = duration
           flows.set(id, flow)
-          broadcast(flow)
+          broadcastFlow(flow)
         }
       })
 
@@ -414,7 +393,7 @@ app.use((req, res) => {
       }
       flow.duration = Date.now() - startTime
       flows.set(id, flow)
-      broadcast(flow)
+      broadcastFlow(flow)
     })
 
     if (requestBody) {
@@ -503,7 +482,7 @@ server.on('connect', (req, clientSocket, head) => {
     }
 
     flows.set(id, flow)
-    broadcast(flow)
+    broadcastFlow(flow)
     requestCount++
 
     // Forward request to actual server
@@ -527,17 +506,19 @@ server.on('connect', (req, clientSocket, head) => {
         console.log(`[SSE] Content-Encoding: ${contentEncoding || 'none'}`)
       }
       
-      // Initialize response early for SSE streaming
+      // Initialize response
       flow.response = {
         status: proxyRes.statusCode || 500,
         statusText: proxyRes.statusMessage || '',
         headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-        body: undefined,
-        events: isSSE ? [] : undefined
+        body: undefined
       }
       
       // For SSE, send headers immediately and stream to client
       if (isSSE) {
+        flow.isSSE = true
+        events.set(id, [])
+        
         let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
         for (const [key, value] of Object.entries(proxyRes.headers)) {
           if (value) {
@@ -547,38 +528,32 @@ server.on('connect', (req, clientSocket, head) => {
         responseHeader += '\r\n'
         tlsClient.write(responseHeader)
         
-        // Broadcast initial response state
+        // Broadcast initial flow state
         flows.set(id, flow)
-        broadcast(flow)
+        broadcastFlow(flow)
       }
       
       const responseChunks: Buffer[] = []
-      const sseParser = isSSE ? new SSEStreamParser() : null
-      let lastBroadcast = Date.now()
+      const sseParser = isSSE ? new SSEStreamParser(id) : null
 
       proxyRes.on('data', (chunk: Buffer) => {
         responseChunks.push(chunk)
         
-        if (isSSE) {
+        if (isSSE && sseParser) {
           // Stream chunk directly to client
           tlsClient.write(chunk)
           
           // Parse SSE events incrementally
           const chunkStr = contentEncoding ? decompressBody(chunk, contentEncoding) : chunk.toString('utf-8')
-          const newEvents = sseParser!.processChunk(chunkStr)
+          const newEvents = sseParser.processChunk(chunkStr)
           
-          if (newEvents.length > 0) {
-            console.log(`[SSE HTTPS] Parsed ${newEvents.length} new events (total: ${flow.response!.events!.length + newEvents.length})`)
-            flow.response!.events!.push(...newEvents)
-            flow.duration = Date.now() - startTime
-            flows.set(id, flow)
-            
-            // Throttle broadcasts to avoid overwhelming clients (max every 50ms)
-            const now = Date.now()
-            if (now - lastBroadcast >= 50) {
-              broadcast(flow)
-              lastBroadcast = now
-            }
+          // Broadcast each event individually
+          for (const event of newEvents) {
+            console.log(`[SSE HTTPS] Broadcasting event: ${event.eventId}`)
+            const flowEvents = events.get(id) || []
+            flowEvents.push(event)
+            events.set(id, flowEvents)
+            broadcastEvent(id, event)
           }
         }
       })
@@ -587,18 +562,22 @@ server.on('connect', (req, clientSocket, head) => {
         const rawBody = Buffer.concat(responseChunks)
         const duration = Date.now() - startTime
 
-        if (isSSE) {
+        if (isSSE && sseParser) {
           // Flush any remaining events
-          const remainingEvents = sseParser!.flush()
-          if (remainingEvents.length > 0) {
-            console.log(`[SSE HTTPS] Flushed ${remainingEvents.length} remaining events`)
-            flow.response!.events!.push(...remainingEvents)
+          const remainingEvents = sseParser.flush()
+          for (const event of remainingEvents) {
+            console.log(`[SSE HTTPS] Flushing event: ${event.eventId}`)
+            const flowEvents = events.get(id) || []
+            flowEvents.push(event)
+            events.set(id, flowEvents)
+            broadcastEvent(id, event)
           }
-          console.log(`[SSE HTTPS] Stream ended with ${flow.response!.events!.length} total events`)
+          const totalEvents = events.get(id)?.length || 0
+          console.log(`[SSE HTTPS] Stream ended with ${totalEvents} total events`)
           flow.response!.body = decompressBody(rawBody, contentEncoding)
           flow.duration = duration
           flows.set(id, flow)
-          broadcast(flow) // Final broadcast
+          broadcastFlow(flow) // Final flow update with duration
         } else {
           // Non-SSE: original behavior
           const decompressedBody = decompressBody(rawBody, contentEncoding)
@@ -611,7 +590,7 @@ server.on('connect', (req, clientSocket, head) => {
           }
           flow.duration = duration
           flows.set(id, flow)
-          broadcast(flow)
+          broadcastFlow(flow)
 
           // Send response back to client (original compressed body)
           let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
@@ -640,7 +619,7 @@ server.on('connect', (req, clientSocket, head) => {
       }
       flow.duration = Date.now() - startTime
       flows.set(id, flow)
-      broadcast(flow)
+      broadcastFlow(flow)
 
       const errorResponse = `HTTP/1.1 502 Bad Gateway\r\ncontent-length: ${err.message.length}\r\n\r\n${err.message}`
       tlsClient.write(errorResponse)

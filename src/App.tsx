@@ -1,16 +1,63 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Flow } from '../shared/types'
+import type { Flow, SSEEvent } from '../shared/types'
+
+type SidebarItem = 
+  | { type: 'flow'; flow: Flow; timestamp: string }
+  | { type: 'event'; event: SSEEvent; flow: Flow; timestamp: string }
 
 function App() {
   const [flows, setFlows] = useState<Flow[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [events, setEvents] = useState<Map<string, SSEEvent[]>>(new Map())
+  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
+  const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
-  const selectedFlow = flows.find((f) => f.id === selectedId)
+  const selectedFlow = flows.find((f) => f.id === selectedFlowId)
+  const selectedFlowEvents = selectedFlowId ? events.get(selectedFlowId) || [] : []
+
+  // Auto-scroll to selected event
+  useEffect(() => {
+    if (selectedEventId) {
+      // Small delay to ensure DOM is rendered
+      const timer = setTimeout(() => {
+        const element = eventRefs.current.get(selectedEventId)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [selectedEventId, selectedFlowId])
+
+  // Create unified sidebar items sorted by timestamp (newest first)
+  const sidebarItems = useMemo<SidebarItem[]>(() => {
+    const items: SidebarItem[] = []
+    
+    // Add all flows
+    for (const flow of flows) {
+      items.push({ type: 'flow', flow, timestamp: flow.timestamp })
+    }
+    
+    // Add all events
+    for (const [flowId, flowEvents] of events.entries()) {
+      const flow = flows.find(f => f.id === flowId)
+      if (flow) {
+        for (const event of flowEvents) {
+          items.push({ type: 'event', event, flow, timestamp: event.timestamp })
+        }
+      }
+    }
+    
+    // Sort by timestamp (newest first)
+    items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    
+    return items
+  }, [flows, events])
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -22,11 +69,19 @@ function App() {
     ws.onclose = () => setConnected(false)
     ws.onerror = () => setConnected(false)
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+    ws.onmessage = (msgEvent) => {
+      const data = JSON.parse(msgEvent.data)
       
       if (data.type === 'init') {
         setFlows(data.flows.reverse())
+        // Convert events Record to Map
+        const eventsMap = new Map<string, SSEEvent[]>()
+        if (data.events) {
+          for (const [flowId, flowEvents] of Object.entries(data.events)) {
+            eventsMap.set(flowId, flowEvents as SSEEvent[])
+          }
+        }
+        setEvents(eventsMap)
       } else if (data.type === 'flow') {
         const flow: Flow = data.flow
         setFlows((prev) => {
@@ -36,6 +91,14 @@ function App() {
           }
           return [flow, ...prev].slice(0, 200)
         })
+      } else if (data.type === 'event') {
+        const { flowId, event } = data as { flowId: string; event: SSEEvent }
+        setEvents((prev) => {
+          const newMap = new Map(prev)
+          const flowEvents = newMap.get(flowId) || []
+          newMap.set(flowId, [...flowEvents, event])
+          return newMap
+        })
       }
     }
 
@@ -44,16 +107,30 @@ function App() {
 
   const clearFlows = () => {
     setFlows([])
-    setSelectedId(null)
+    setEvents(new Map())
+    setSelectedFlowId(null)
+    setSelectedEventId(null)
+  }
+
+  const selectFlow = (flowId: string) => {
+    setSelectedFlowId(flowId)
+    setSelectedEventId(null)
+  }
+
+  const selectEvent = (flowId: string, eventId: string) => {
+    setSelectedFlowId(flowId)
+    setSelectedEventId(eventId)
   }
 
   const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
+    const date = new Date(timestamp)
+    const time = date.toLocaleTimeString('en-US', {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     })
+    return `${time}`
   }
 
   const getStatusColor = (status?: number) => {
@@ -91,6 +168,8 @@ function App() {
     }
   }
 
+  const totalEvents = Array.from(events.values()).reduce((sum, arr) => sum + arr.length, 0)
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Top Bar */}
@@ -104,6 +183,7 @@ function App() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-mono">{flows.length} flows</span>
+          <span className="text-xs text-cyan-400 font-mono">{totalEvents} events</span>
           <Button variant="ghost" size="sm" onClick={clearFlows} className="text-xs h-7">
             Clear
           </Button>
@@ -112,22 +192,26 @@ function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
-        {/* Sidebar - Request List */}
+        {/* Sidebar - Unified List */}
         <aside className="w-80 border-r border-border shrink-0 overflow-hidden">
           <ScrollArea className="h-full">
-            {flows.length === 0 ? (
+            {sidebarItems.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-muted-foreground text-xs">
                 Waiting for requests...
               </div>
             ) : (
               <div className="divide-y divide-border w-80">
-                {flows.map((flow) => (
+                {sidebarItems.map((item) => {
+                  if (item.type === 'flow') {
+                    const flow = item.flow
+                    const flowEventCount = events.get(flow.id)?.length || 0
+                    return (
                   <button
-                    key={flow.id}
-                    onClick={() => setSelectedId(flow.id)}
+                        key={`flow-${flow.id}`}
+                        onClick={() => selectFlow(flow.id)}
                     className={cn(
                       'w-80 text-left px-3 py-2.5 hover:bg-muted/50 transition-colors overflow-hidden',
-                      selectedId === flow.id && 'bg-muted'
+                          selectedFlowId === flow.id && 'bg-muted'
                     )}
                   >
                     <div className="flex items-center gap-2 mb-1 w-full">
@@ -137,9 +221,9 @@ function App() {
                       <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                         {flow.host}
                       </span>
-                      {flow.response?.events && flow.response.events.length > 0 && (
+                          {flow.isSSE && flowEventCount > 0 && (
                         <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
-                          {flow.response.events.length}
+                              {flowEventCount}
                         </span>
                       )}
                       {flow.response && (
@@ -157,7 +241,46 @@ function App() {
                       </span>
                     </div>
                   </button>
-                ))}
+                    )
+                  } else {
+                    const { event, flow } = item
+                    return (
+                      <button
+                        key={`event-${event.eventId}`}
+                        onClick={() => selectEvent(flow.id, event.eventId)}
+                        className={cn(
+                          'w-80 text-left px-3 py-2 hover:bg-cyan-500/10 transition-colors overflow-hidden border-l-4 border-cyan-500/50',
+                          selectedFlowId === flow.id && 'bg-cyan-500/10',
+                          selectedEventId === event.eventId && 'bg-cyan-500/20'
+                        )}
+                      >
+                        <div className="flex items-center gap-2 mb-1 w-full">
+                          <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
+                            {event.event || 'message'}
+                          </span>
+                          <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+                            {flow.host}
+                          </span>
+                          <span className="text-xs text-muted-foreground/60 shrink-0">
+                            {formatTime(event.timestamp)}
+                          </span>
+                        </div>
+                        <div className="font-mono text-xs text-muted-foreground truncate w-full">
+                          {(() => {
+                            try {
+                              const parsed = JSON.parse(event.data)
+                              // Try to show a meaningful preview
+                              if (parsed.type) return `type: ${parsed.type}`
+                              return event.data.slice(0, 50) + (event.data.length > 50 ? '...' : '')
+                            } catch {
+                              return event.data.slice(0, 50) + (event.data.length > 50 ? '...' : '')
+                            }
+                          })()}
+                        </div>
+                      </button>
+                    )
+                  }
+                })}
               </div>
             )}
           </ScrollArea>
@@ -212,9 +335,9 @@ function App() {
                           <span className="text-xs text-muted-foreground">
                             {selectedFlow.response.statusText}
                           </span>
-                          {selectedFlow.response.events && (
+                          {selectedFlow.isSSE && selectedFlowEvents.length > 0 && (
                             <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
-                              {selectedFlow.response.events.length} events
+                              {selectedFlowEvents.length} events
                             </span>
                           )}
                           {selectedFlow.duration && (
@@ -237,13 +360,26 @@ function App() {
                         </pre>
                       </div>
 
-                      {/* SSE Events */}
-                      {selectedFlow.response.events && selectedFlow.response.events.length > 0 ? (
+                      {/* SSE Events - look up from events map */}
+                      {selectedFlowEvents.length > 0 ? (
                         <div>
                           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Events</h3>
                           <div className="space-y-2">
-                            {selectedFlow.response.events.map((event, idx) => (
-                              <div key={idx} className="border-l-4 border-cyan-500/50">
+                            {selectedFlowEvents.map((event) => (
+                              <div
+                                key={event.eventId}
+                                ref={(el) => {
+                                  if (el) {
+                                    eventRefs.current.set(event.eventId, el)
+                                  } else {
+                                    eventRefs.current.delete(event.eventId)
+                                  }
+                                }}
+                                className={cn(
+                                  'border-l-4 border-cyan-500/50 transition-colors',
+                                  selectedEventId === event.eventId && 'border-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-500/30'
+                                )}
+                              >
                                 <div className="bg-muted/30 px-3 py-1.5 flex items-center gap-2">
                                   <span className="text-xs font-mono text-cyan-400">
                                     {event.event || 'message'}

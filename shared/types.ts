@@ -7,6 +7,8 @@ export interface FlowRequest {
 }
 
 export interface SSEEvent {
+  eventId: string
+  flowId: string
   event?: string
   data: string
   id?: string
@@ -19,7 +21,6 @@ export interface FlowResponse {
   statusText: string
   headers: Record<string, string | string[] | undefined>
   body?: string
-  events?: SSEEvent[]
 }
 
 export interface Flow {
@@ -30,5 +31,5 @@ export interface Flow {
   request: FlowRequest
   response?: FlowResponse
   duration?: number
+  isSSE?: boolean
 }
-
