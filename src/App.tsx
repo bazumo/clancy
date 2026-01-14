@@ -17,6 +17,12 @@ function App() {
   const wsRef = useRef<WebSocket | null>(null)
   const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
+  // Filter state
+  const [filterExpanded, setFilterExpanded] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const [itemTypeFilter, setItemTypeFilter] = useState<'all' | 'flows' | 'events'>('all')
+  const [eventTypeFilter, setEventTypeFilter] = useState<string>('all')
+
   const selectedFlow = flows.find((f) => f.id === selectedFlowId)
   const selectedFlowEvents = selectedFlowId ? events.get(selectedFlowId) || [] : []
 
@@ -34,21 +40,52 @@ function App() {
     }
   }, [selectedEventId, selectedFlowId])
 
+  // Get unique event types for filter dropdown
+  const uniqueEventTypes = useMemo(() => {
+    const types = new Set<string>()
+    for (const flowEvents of events.values()) {
+      for (const event of flowEvents) {
+        types.add(event.event || 'message')
+      }
+    }
+    return Array.from(types).sort()
+  }, [events])
+
   // Create unified sidebar items sorted by timestamp (newest first)
   const sidebarItems = useMemo<SidebarItem[]>(() => {
     const items: SidebarItem[] = []
+    const searchLower = searchText.toLowerCase()
     
-    // Add all flows
-    for (const flow of flows) {
-      items.push({ type: 'flow', flow, timestamp: flow.timestamp })
+    // Add all flows (if not filtering to events only)
+    if (itemTypeFilter !== 'events') {
+      for (const flow of flows) {
+        // Apply search filter
+        if (searchText) {
+          const searchable = `${flow.host} ${flow.request.path} ${flow.request.method} ${flow.request.url} ${flow.request.body || ''} ${flow.response?.body || ''}`.toLowerCase()
+          if (!searchable.includes(searchLower)) continue
+        }
+        items.push({ type: 'flow', flow, timestamp: flow.timestamp })
+      }
     }
     
-    // Add all events
-    for (const [flowId, flowEvents] of events.entries()) {
-      const flow = flows.find(f => f.id === flowId)
-      if (flow) {
-        for (const event of flowEvents) {
-          items.push({ type: 'event', event, flow, timestamp: event.timestamp })
+    // Add all events (if not filtering to flows only)
+    if (itemTypeFilter !== 'flows') {
+      for (const [flowId, flowEvents] of events.entries()) {
+        const flow = flows.find(f => f.id === flowId)
+        if (flow) {
+          for (const event of flowEvents) {
+            // Apply event type filter
+            const eventType = event.event || 'message'
+            if (eventTypeFilter !== 'all' && eventType !== eventTypeFilter) continue
+            
+            // Apply search filter
+            if (searchText) {
+              const searchable = `${flow.host} ${eventType} ${event.data}`.toLowerCase()
+              if (!searchable.includes(searchLower)) continue
+            }
+            
+            items.push({ type: 'event', event, flow, timestamp: event.timestamp })
+          }
         }
       }
     }
@@ -57,7 +94,7 @@ function App() {
     items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     
     return items
-  }, [flows, events])
+  }, [flows, events, searchText, itemTypeFilter, eventTypeFilter])
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -193,8 +230,123 @@ function App() {
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
         {/* Sidebar - Unified List */}
-        <aside className="w-80 border-r border-border shrink-0 overflow-hidden">
-          <ScrollArea className="h-full">
+        <aside className="w-80 border-r border-border shrink-0 flex flex-col min-h-0">
+          {/* Filter Box */}
+          <div className="border-b border-border shrink-0">
+            {(() => {
+              const activeFilterCount = (searchText ? 1 : 0) + (itemTypeFilter !== 'all' ? 1 : 0) + (eventTypeFilter !== 'all' ? 1 : 0)
+              return (
+                <div className="flex items-center">
+                  <button
+                    onClick={() => setFilterExpanded(!filterExpanded)}
+                    className="flex-1 px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+                  >
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filter</span>
+                    {activeFilterCount > 0 && (
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                    <svg
+                      className={cn(
+                        'w-4 h-4 text-muted-foreground transition-transform ml-auto',
+                        filterExpanded && 'rotate-180'
+                      )}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {activeFilterCount > 0 && (
+                    <button
+                      onClick={() => {
+                        setSearchText('')
+                        setItemTypeFilter('all')
+                        setEventTypeFilter('all')
+                      }}
+                      className="px-2 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Clear all filters"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
+            {filterExpanded && (
+              <div className="px-3 pb-3 space-y-3">
+                {/* Search Input */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Search</label>
+                  <input
+                    type="text"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Filter by text..."
+                    className="w-full px-2 py-1.5 text-xs bg-muted/50 border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                  />
+                </div>
+                
+                {/* Item Type Filter */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+                  <div className="flex gap-1">
+                    {(['all', 'flows', 'events'] as const).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setItemTypeFilter(type)}
+                        className={cn(
+                          'px-2 py-1 text-xs rounded transition-colors',
+                          itemTypeFilter === type
+                            ? 'bg-foreground text-background'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Event Type Filter */}
+                {(itemTypeFilter === 'all' || itemTypeFilter === 'events') && uniqueEventTypes.length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Event Type</label>
+                    <select
+                      value={eventTypeFilter}
+                      onChange={(e) => setEventTypeFilter(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs bg-muted/50 border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="all">All Events</option>
+                      {uniqueEventTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                {/* Clear Filters */}
+                {(searchText || itemTypeFilter !== 'all' || eventTypeFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setSearchText('')
+                      setItemTypeFilter('all')
+                      setEventTypeFilter('all')
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <ScrollArea className="flex-1 min-h-0">
             {sidebarItems.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-muted-foreground text-xs">
                 Waiting for requests...
