@@ -166,6 +166,79 @@ function parseSSEEvents(body: string): SSEEvent[] {
   return events
 }
 
+// Incremental SSE parser for streaming
+class SSEStreamParser {
+  private buffer = ''
+  private events: SSEEvent[] = []
+  
+  // Process a chunk, returns any newly completed events
+  processChunk(chunk: string): SSEEvent[] {
+    this.buffer += chunk
+    const newEvents: SSEEvent[] = []
+    
+    // Split on double newlines (event boundaries)
+    const parts = this.buffer.split(/\n\n/)
+    
+    // Keep the last part as buffer (might be incomplete)
+    this.buffer = parts.pop() || ''
+    
+    // Parse complete events
+    for (const part of parts) {
+      if (!part.trim()) continue
+      
+      const event = this.parseEvent(part)
+      if (event) {
+        this.events.push(event)
+        newEvents.push(event)
+      }
+    }
+    
+    return newEvents
+  }
+  
+  // Flush any remaining buffer content
+  flush(): SSEEvent[] {
+    if (!this.buffer.trim()) return []
+    
+    const event = this.parseEvent(this.buffer)
+    this.buffer = ''
+    
+    if (event) {
+      this.events.push(event)
+      return [event]
+    }
+    return []
+  }
+  
+  private parseEvent(raw: string): SSEEvent | null {
+    const lines = raw.split('\n')
+    const event: Partial<SSEEvent> = {}
+    const dataLines: string[] = []
+    
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        event.event = line.slice(6).trim()
+      } else if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim())
+      } else if (line.startsWith('id:')) {
+        event.id = line.slice(3).trim()
+      } else if (line.startsWith('retry:')) {
+        event.retry = line.slice(6).trim()
+      }
+    }
+    
+    if (dataLines.length > 0) {
+      event.data = dataLines.join('\n')
+      return event as SSEEvent
+    }
+    return null
+  }
+  
+  getAllEvents(): SSEEvent[] {
+    return this.events
+  }
+}
+
 // Initialize CA
 loadOrCreateCA()
 
@@ -276,37 +349,82 @@ app.use((req, res) => {
     }
 
     const proxyReq = http.request(options, (proxyRes) => {
+      const contentType = proxyRes.headers['content-type'] as string | undefined
+      const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
+      const isSSE = contentType?.includes('text/event-stream')
+      
+      // Initialize response early for SSE streaming
+      flow.response = {
+        status: proxyRes.statusCode || 500,
+        statusText: proxyRes.statusMessage || '',
+        headers: proxyRes.headers as Record<string, string | string[] | undefined>,
+        body: undefined,
+        events: isSSE ? [] : undefined
+      }
+      
+      // Broadcast initial response state for SSE
+      if (isSSE) {
+        flows.set(id, flow)
+        broadcast(flow)
+      }
+      
       const responseChunks: Buffer[] = []
+      const sseParser = isSSE ? new SSEStreamParser() : null
+      let lastBroadcast = Date.now()
 
-      proxyRes.on('data', (chunk) => {
+      proxyRes.on('data', (chunk: Buffer) => {
         responseChunks.push(chunk)
         res.write(chunk)
+        
+        if (isSSE) {
+          // Parse SSE events incrementally
+          const chunkStr = contentEncoding ? decompressBody(chunk, contentEncoding) : chunk.toString('utf-8')
+          const newEvents = sseParser!.processChunk(chunkStr)
+          
+          if (newEvents.length > 0) {
+            flow.response!.events!.push(...newEvents)
+            flow.duration = Date.now() - startTime
+            flows.set(id, flow)
+            
+            // Throttle broadcasts to avoid overwhelming clients (max every 50ms)
+            const now = Date.now()
+            if (now - lastBroadcast >= 50) {
+              broadcast(flow)
+              lastBroadcast = now
+            }
+          }
+        }
       })
 
       proxyRes.on('end', () => {
         res.end()
         const rawBody = Buffer.concat(responseChunks)
-        const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
-        const responseBody = decompressBody(rawBody, contentEncoding)
         const duration = Date.now() - startTime
-        const contentType = proxyRes.headers['content-type'] as string | undefined
 
-        flow.response = {
-          status: proxyRes.statusCode || 500,
-          statusText: proxyRes.statusMessage || '',
-          headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-          body: responseBody || undefined
+        if (isSSE) {
+          // Flush any remaining events
+          const remainingEvents = sseParser!.flush()
+          if (remainingEvents.length > 0) {
+            flow.response!.events!.push(...remainingEvents)
+          }
+          flow.response!.body = decompressBody(rawBody, contentEncoding)
+          flow.duration = duration
+          flows.set(id, flow)
+          broadcast(flow) // Final broadcast
+        } else {
+          // Non-SSE: original behavior
+          const responseBody = decompressBody(rawBody, contentEncoding)
+
+          flow.response = {
+            status: proxyRes.statusCode || 500,
+            statusText: proxyRes.statusMessage || '',
+            headers: proxyRes.headers as Record<string, string | string[] | undefined>,
+            body: responseBody || undefined
+          }
+          flow.duration = duration
+          flows.set(id, flow)
+          broadcast(flow)
         }
-
-        // Parse SSE events if content-type is text/event-stream
-        if (contentType?.includes('text/event-stream') && responseBody) {
-          flow.response.events = parseSSEEvents(responseBody)
-        }
-
-        flow.duration = duration
-
-        flows.set(id, flow)
-        broadcast(flow)
       })
 
       res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
@@ -428,46 +546,106 @@ server.on('connect', (req, clientSocket, head) => {
     }
 
     const proxyReq = https.request(reqOptions, (proxyRes) => {
-      const responseChunks: Buffer[] = []
-
-      proxyRes.on('data', (chunk) => responseChunks.push(chunk))
-
-      proxyRes.on('end', () => {
-        const rawBody = Buffer.concat(responseChunks)
-        const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
-        const decompressedBody = decompressBody(rawBody, contentEncoding)
-        const duration = Date.now() - startTime
-        const contentType = proxyRes.headers['content-type'] as string | undefined
-
-        flow.response = {
-          status: proxyRes.statusCode || 500,
-          statusText: proxyRes.statusMessage || '',
-          headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-          body: decompressedBody || undefined
-        }
-
-        // Parse SSE events if content-type is text/event-stream
-        if (contentType?.includes('text/event-stream') && decompressedBody) {
-          flow.response.events = parseSSEEvents(decompressedBody)
-        }
-
-        flow.duration = duration
-
-        flows.set(id, flow)
-        broadcast(flow)
-
-        // Send response back to client (original compressed body)
+      const contentType = proxyRes.headers['content-type'] as string | undefined
+      const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
+      const isSSE = contentType?.includes('text/event-stream')
+      
+      // Initialize response early for SSE streaming
+      flow.response = {
+        status: proxyRes.statusCode || 500,
+        statusText: proxyRes.statusMessage || '',
+        headers: proxyRes.headers as Record<string, string | string[] | undefined>,
+        body: undefined,
+        events: isSSE ? [] : undefined
+      }
+      
+      // For SSE, send headers immediately and stream to client
+      if (isSSE) {
         let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
         for (const [key, value] of Object.entries(proxyRes.headers)) {
-          if (value && key !== 'transfer-encoding') {
+          if (value) {
             responseHeader += `${key}: ${Array.isArray(value) ? value.join(', ') : value}\r\n`
           }
         }
-        responseHeader += `content-length: ${rawBody.length}\r\n`
         responseHeader += '\r\n'
-
         tlsClient.write(responseHeader)
-        tlsClient.write(rawBody)
+        
+        // Broadcast initial response state
+        flows.set(id, flow)
+        broadcast(flow)
+      }
+      
+      const responseChunks: Buffer[] = []
+      const sseParser = isSSE ? new SSEStreamParser() : null
+      let lastBroadcast = Date.now()
+
+      proxyRes.on('data', (chunk: Buffer) => {
+        responseChunks.push(chunk)
+        
+        if (isSSE) {
+          // Stream chunk directly to client
+          tlsClient.write(chunk)
+          
+          // Parse SSE events incrementally
+          const chunkStr = contentEncoding ? decompressBody(chunk, contentEncoding) : chunk.toString('utf-8')
+          const newEvents = sseParser!.processChunk(chunkStr)
+          
+          if (newEvents.length > 0) {
+            flow.response!.events!.push(...newEvents)
+            flow.duration = Date.now() - startTime
+            flows.set(id, flow)
+            
+            // Throttle broadcasts to avoid overwhelming clients (max every 50ms)
+            const now = Date.now()
+            if (now - lastBroadcast >= 50) {
+              broadcast(flow)
+              lastBroadcast = now
+            }
+          }
+        }
+      })
+
+      proxyRes.on('end', () => {
+        const rawBody = Buffer.concat(responseChunks)
+        const duration = Date.now() - startTime
+
+        if (isSSE) {
+          // Flush any remaining events
+          const remainingEvents = sseParser!.flush()
+          if (remainingEvents.length > 0) {
+            flow.response!.events!.push(...remainingEvents)
+          }
+          flow.response!.body = decompressBody(rawBody, contentEncoding)
+          flow.duration = duration
+          flows.set(id, flow)
+          broadcast(flow) // Final broadcast
+        } else {
+          // Non-SSE: original behavior
+          const decompressedBody = decompressBody(rawBody, contentEncoding)
+          
+          flow.response = {
+            status: proxyRes.statusCode || 500,
+            statusText: proxyRes.statusMessage || '',
+            headers: proxyRes.headers as Record<string, string | string[] | undefined>,
+            body: decompressedBody || undefined
+          }
+          flow.duration = duration
+          flows.set(id, flow)
+          broadcast(flow)
+
+          // Send response back to client (original compressed body)
+          let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
+          for (const [key, value] of Object.entries(proxyRes.headers)) {
+            if (value && key !== 'transfer-encoding') {
+              responseHeader += `${key}: ${Array.isArray(value) ? value.join(', ') : value}\r\n`
+            }
+          }
+          responseHeader += `content-length: ${rawBody.length}\r\n`
+          responseHeader += '\r\n'
+
+          tlsClient.write(responseHeader)
+          tlsClient.write(rawBody)
+        }
       })
     })
 
