@@ -1,6 +1,6 @@
 import type { ContentBlock as ContentBlockType } from '../types'
 import { ContentBlock } from './ContentBlock'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
 
 interface ContentViewProps {
   content: ContentBlockType[]
@@ -15,6 +15,7 @@ export function ContentView({ content, defaultExpanded = true }: ContentViewProp
     <CollapsibleSection
       title="Content"
       color={sectionTypeColors.content}
+      icon={sectionIcons.content}
       defaultExpanded={defaultExpanded}
       contentClassName="px-4 py-3 space-y-2"
       headerContent={

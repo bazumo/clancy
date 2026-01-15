@@ -1,5 +1,5 @@
 import type { Usage } from '../types'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
 
 interface UsageViewProps {
   usage: Usage
@@ -15,6 +15,7 @@ export function UsageView({ usage, defaultExpanded = true }: UsageViewProps) {
     <CollapsibleSection
       title="Usage"
       color={sectionTypeColors.usage}
+      icon={sectionIcons.usage}
       defaultExpanded={defaultExpanded}
       contentClassName="px-4 py-3 space-y-3"
       headerContent={

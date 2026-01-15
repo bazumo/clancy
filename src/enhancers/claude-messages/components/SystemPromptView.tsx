@@ -1,5 +1,5 @@
 import type { SystemBlock } from '../types'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
 
 interface SystemPromptViewProps {
   system: string | SystemBlock[]
@@ -14,6 +14,7 @@ export function SystemPromptView({ system, defaultExpanded = true }: SystemPromp
     <CollapsibleSection
       title="System"
       color={sectionTypeColors.system}
+      icon={sectionIcons.system}
       defaultExpanded={defaultExpanded}
       headerContent={
         <>
