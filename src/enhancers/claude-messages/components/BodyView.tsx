@@ -1,4 +1,4 @@
-import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components'
 import { isJson, formatJson, highlightJson } from '@/lib/json-highlight'
 import { useMemo } from 'react'
 
@@ -15,7 +15,6 @@ export function BodyView({ body, defaultExpanded = true }: BodyViewProps) {
     <CollapsibleSection
       title="Body"
       color={sectionTypeColors.body}
-      icon={sectionIcons.body}
       defaultExpanded={defaultExpanded}
     >
       <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto">

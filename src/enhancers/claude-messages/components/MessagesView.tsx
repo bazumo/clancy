@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import type { Message } from '../types'
+import type { Message, ContentBlock as ContentBlockType } from '../types'
 import { ChatMessage } from './ChatMessage'
 import { sectionIcons } from '@/components'
 
@@ -9,8 +9,28 @@ interface MessagesViewProps {
   defaultExpanded?: boolean
 }
 
+// Find the last index that has cache_control set
+function findLastCacheBreakpointIndex(messages: Message[]): number {
+  let lastIndex = -1
+  messages.forEach((message, index) => {
+    if (typeof message.content !== 'string') {
+      const hasCache = message.content.some(
+        (block: ContentBlockType) => 'cache_control' in block && block.cache_control
+      )
+      if (hasCache) {
+        lastIndex = index
+      }
+    }
+  })
+  return lastIndex
+}
+
 export function MessagesView({ messages, defaultExpanded = true }: MessagesViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
+  
+  // Find the cache breakpoint index
+  const lastCacheIndex = useMemo(() => findLastCacheBreakpointIndex(messages), [messages])
+  const hasCaching = lastCacheIndex >= 0
   
   return (
     <div className="border-b border-border">
@@ -43,6 +63,16 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
             {messages.length}
           </span>
           
+          {/* Cache indicator */}
+          {hasCaching && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+              </svg>
+              {lastCacheIndex + 1} cached
+            </span>
+          )}
+          
           {/* Role breakdown */}
           <div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
@@ -61,7 +91,12 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
       {expanded && (
         <div className="py-3 px-4 space-y-3 bg-gradient-to-b from-muted/10 to-transparent">
           {messages.map((message, i) => (
-            <ChatMessage key={i} message={message} index={i} />
+            <ChatMessage 
+              key={i} 
+              message={message} 
+              index={i} 
+              hasCacheBreakpoint={i <= lastCacheIndex}
+            />
           ))}
         </div>
       )}

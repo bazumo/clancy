@@ -1,5 +1,5 @@
 import type { ClaudeMessagesResponse } from '../types'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
 
 interface ResponseGeneralViewProps {
   response: ClaudeMessagesResponse
@@ -11,6 +11,7 @@ export function ResponseGeneralView({ response, defaultExpanded = true }: Respon
     <CollapsibleSection
       title="General"
       color={sectionTypeColors.general}
+      icon={sectionIcons.general}
       defaultExpanded={defaultExpanded}
       contentClassName="px-4 py-3 space-y-3"
       headerContent={

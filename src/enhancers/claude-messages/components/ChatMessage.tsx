@@ -1,16 +1,23 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import type { Message, ContentBlock as ContentBlockType } from '../types'
+import type { Message, ContentBlock as ContentBlockType, CacheControl } from '../types'
 import { ContentBlock } from './ContentBlock'
 
 interface ChatMessageProps {
   message: Message
   index: number
+  /** Whether this message has cache_control set (marks cache boundary) */
+  hasCacheBreakpoint?: boolean
 }
 
-function hasCache(content: string | ContentBlockType[]): boolean {
-  if (typeof content === 'string') return false
-  return content.some(block => 'cache_control' in block && block.cache_control)
+function getCacheControl(content: string | ContentBlockType[]): CacheControl | null {
+  if (typeof content === 'string') return null
+  for (const block of content) {
+    if ('cache_control' in block && block.cache_control) {
+      return block.cache_control
+    }
+  }
+  return null
 }
 
 function getTextPreview(content: string | ContentBlockType[]): string {
@@ -46,11 +53,17 @@ const AssistantIcon = () => (
   </svg>
 )
 
-export function ChatMessage({ message, index }: ChatMessageProps) {
+const CacheIcon = () => (
+  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+  </svg>
+)
+
+export function ChatMessage({ message, index, hasCacheBreakpoint }: ChatMessageProps) {
   const [expanded, setExpanded] = useState(false)
   const isUser = message.role === 'user'
   const content = message.content
-  const cached = hasCache(content)
+  const cacheControl = getCacheControl(content)
   
   const hasComplexContent = typeof content !== 'string' && content.some(
     b => b.type !== 'text'
@@ -59,94 +72,110 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
   const contentTypes = typeof content !== 'string' ? countContentTypes(content) : {}
   
   return (
-    <div className="relative pl-3">
-      {/* Role indicator line */}
-      <div className={cn(
-        'absolute left-0 top-0 bottom-0 w-1 rounded-full',
-        isUser ? 'bg-rose-500' : 'bg-violet-500'
-      )} />
-      
-      {/* Message header */}
-      <div className="flex items-center gap-2 mb-1.5 pl-1">
+    <div className="relative">
+      <div className="relative pl-3">
+        {/* Role indicator line - amber tint if part of cache */}
         <div className={cn(
-          'flex items-center gap-1.5',
-          isUser ? 'text-rose-400' : 'text-violet-400'
-        )}>
-          {isUser ? <UserIcon /> : <AssistantIcon />}
-          <span className="text-[11px] font-semibold uppercase tracking-wide">
-            {message.role}
-          </span>
-        </div>
-        <span className="text-[10px] text-muted-foreground/50 font-mono">#{index}</span>
-        {cached && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-medium">
-            cached
-          </span>
-        )}
-        {hasComplexContent && (
-          <div className="flex gap-1 ml-auto">
-            {Object.entries(contentTypes).map(([type, count]) => (
-              type !== 'text' && (
-                <span 
-                  key={type}
-                  className={cn(
-                    'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                    type === 'thinking' && 'bg-purple-500/15 text-purple-400',
-                    type === 'tool_use' && 'bg-blue-500/15 text-blue-400',
-                    type === 'tool_result' && 'bg-emerald-500/15 text-emerald-400',
-                    type === 'image' && 'bg-cyan-500/15 text-cyan-400',
-                  )}
-                >
-                  {count} {type.replace('_', ' ')}
-                </span>
-              )
-            ))}
+          'absolute left-0 top-0 bottom-0 w-1 rounded-full',
+          isUser 
+            ? (hasCacheBreakpoint ? 'bg-gradient-to-b from-rose-500 to-amber-500' : 'bg-rose-500')
+            : (hasCacheBreakpoint ? 'bg-gradient-to-b from-violet-500 to-amber-500' : 'bg-violet-500')
+        )} />
+        
+        {/* Message header */}
+        <div className="flex items-center gap-2 mb-1.5 pl-1">
+          <div className={cn(
+            'flex items-center gap-1.5',
+            isUser ? 'text-rose-400' : 'text-violet-400'
+          )}>
+            {isUser ? <UserIcon /> : <AssistantIcon />}
+            <span className="text-[11px] font-semibold uppercase tracking-wide">
+              {message.role}
+            </span>
           </div>
-        )}
+          <span className="text-[10px] text-muted-foreground/50 font-mono">#{index}</span>
+          {hasComplexContent && (
+            <div className="flex gap-1 ml-auto">
+              {Object.entries(contentTypes).map(([type, count]) => (
+                type !== 'text' && (
+                  <span 
+                    key={type}
+                    className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                      type === 'thinking' && 'bg-purple-500/15 text-purple-400',
+                      type === 'tool_use' && 'bg-blue-500/15 text-blue-400',
+                      type === 'tool_result' && 'bg-emerald-500/15 text-emerald-400',
+                      type === 'image' && 'bg-cyan-500/15 text-cyan-400',
+                    )}
+                  >
+                    {count} {type.replace('_', ' ')}
+                  </span>
+                )
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Message content */}
+        <div className={cn(
+          'rounded-lg transition-all ml-1',
+          isUser 
+            ? 'bg-rose-500/5 border border-rose-500/15' 
+            : 'bg-violet-500/5 border border-violet-500/15',
+          hasCacheBreakpoint && 'ring-1 ring-amber-500/20'
+        )}>
+          {/* Preview / collapsed view */}
+          {!expanded && typeof content === 'string' ? (
+            <div className="px-3 py-2.5">
+              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-foreground/90">
+                {content}
+              </p>
+            </div>
+          ) : !expanded ? (
+            <button 
+              onClick={() => setExpanded(true)}
+              className="w-full text-left px-3 py-2.5 hover:bg-white/5 transition-colors rounded-lg"
+            >
+              {getTextPreview(content) && (
+                <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-foreground/90 mb-2">
+                  {getTextPreview(content)}
+                </p>
+              )}
+              <span className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Click to expand {(content as ContentBlockType[]).length} blocks →
+              </span>
+            </button>
+          ) : (
+            <div className="px-3 py-2.5 space-y-3">
+              {(content as ContentBlockType[]).map((block: ContentBlockType, i: number) => (
+                <ContentBlock key={i} block={block} />
+              ))}
+              <button 
+                onClick={() => setExpanded(false)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ← Collapse
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       
-      {/* Message content */}
-      <div className={cn(
-        'rounded-lg transition-all ml-1',
-        isUser 
-          ? 'bg-rose-500/5 border border-rose-500/15' 
-          : 'bg-violet-500/5 border border-violet-500/15'
-      )}>
-        {/* Preview / collapsed view */}
-        {!expanded && typeof content === 'string' ? (
-          <div className="px-3 py-2.5">
-            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-foreground/90">
-              {content}
-            </p>
+      {/* Cache breakpoint indicator - shows below the message */}
+      {cacheControl && (
+        <div className="relative mt-2">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-dashed border-amber-500/40" />
           </div>
-        ) : !expanded ? (
-          <button 
-            onClick={() => setExpanded(true)}
-            className="w-full text-left px-3 py-2.5 hover:bg-white/5 transition-colors rounded-lg"
-          >
-            {getTextPreview(content) && (
-              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-foreground/90 mb-2">
-                {getTextPreview(content)}
-              </p>
-            )}
-            <span className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Click to expand {(content as ContentBlockType[]).length} blocks →
+          <div className="relative flex justify-center">
+            <span className="px-2 py-0.5 text-[10px] font-mono bg-background text-amber-400 flex items-center gap-1.5">
+              <CacheIcon />
+              <span className="opacity-70">↑ cached up to here</span>
+              <span className="text-amber-500">cache_control: {cacheControl.type}</span>
             </span>
-          </button>
-        ) : (
-          <div className="px-3 py-2.5 space-y-3">
-            {(content as ContentBlockType[]).map((block: ContentBlockType, i: number) => (
-              <ContentBlock key={i} block={block} />
-            ))}
-            <button 
-              onClick={() => setExpanded(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              ← Collapse
-            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
