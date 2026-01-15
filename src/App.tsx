@@ -6,7 +6,7 @@ import type { Flow, SSEEvent } from '../shared/types'
 import { getFlowTags, getPrimaryEnhancer } from './enhancers'
 import type { EnhancerMatch } from './enhancers'
 import { HeadersView } from './enhancers/claude-messages/components/HeadersView'
-import { RawBodyView } from './enhancers/claude-messages/components/RawBodyView'
+import { BodyView } from './enhancers/claude-messages/components/BodyView'
 import { RawEventsView } from './enhancers/claude-messages/components/RawEventsView'
 import { FetchedRawHttpView } from './enhancers/claude-messages/components/FetchedRawHttpView'
 import { EnhancedEventsView } from './enhancers/claude-messages/components/EnhancedEventsView'
@@ -494,26 +494,22 @@ function App() {
                       <TagList tags={selectedFlowTags} />
                       <div className="flex-1" />
                       {(() => {
-                        const modes: ViewMode[] = ['raw', 'http']
+                        const modes: ViewMode[] = selectedFlow.hasRawHttp ? ['raw', 'http'] : ['http']
                         if (selectedFlowEnhancer?.enhancer.RequestBodyComponent) modes.push('enhanced')
-                        return <ViewModeToggle value={requestViewMode} onChange={setRequestViewMode} modes={modes} />
+                        return modes.length > 1 
+                          ? <ViewModeToggle value={requestViewMode} onChange={setRequestViewMode} modes={modes} />
+                          : null
                       })()}
                     </div>
                   </div>
                   <div className="min-w-0">
-                    {requestViewMode === 'raw' ? (
-                      selectedFlow.hasRawHttp ? (
-                        <FetchedRawHttpView flowId={selectedFlow.id} type="request" />
-                      ) : (
-                        <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-                          Raw HTTP not available for streaming responses
-                        </div>
-                      )
-                    ) : requestViewMode === 'http' ? (
+                    {requestViewMode === 'raw' && selectedFlow.hasRawHttp ? (
+                      <FetchedRawHttpView flowId={selectedFlow.id} type="request" />
+                    ) : requestViewMode === 'http' || requestViewMode === 'raw' ? (
                       <div>
                         <HeadersView headers={selectedFlow.request.headers} />
                         {selectedFlow.request.body && (
-                          <RawBodyView body={selectedFlow.request.body} />
+                          <BodyView body={selectedFlow.request.body} />
                         )}
                       </div>
                     ) : requestViewMode === 'enhanced' && selectedFlowEnhancer?.enhancer.RequestBodyComponent && selectedFlow.request.body ? (
@@ -528,7 +524,7 @@ function App() {
                       <div>
                         <HeadersView headers={selectedFlow.request.headers} />
                         {selectedFlow.request.body && (
-                          <RawBodyView body={selectedFlow.request.body} />
+                          <BodyView body={selectedFlow.request.body} />
                         )}
                       </div>
                     )}
@@ -556,14 +552,16 @@ function App() {
                           {(() => {
                             const hasEnhancer = selectedFlowEnhancer?.enhancer.ResponseBodyComponent || selectedFlowEnhancer?.enhancer.EventComponent
                             const hasEvents = selectedFlowEvents.length > 0
-                            // Show all applicable modes - always include raw/http
+                            // Only show raw if available
                             const modes: ViewMode[] = [
-                              'raw',
+                              ...(selectedFlow.hasRawHttp ? ['raw'] as ViewMode[] : []),
                               'http',
                               ...(hasEvents ? ['events'] as ViewMode[] : []),
                               ...(hasEnhancer ? ['enhanced'] as ViewMode[] : [])
                             ]
-                            return <ViewModeToggle value={responseViewMode} onChange={setResponseViewMode} modes={modes} />
+                            return modes.length > 1 
+                              ? <ViewModeToggle value={responseViewMode} onChange={setResponseViewMode} modes={modes} />
+                              : null
                           })()}
                         </>
                       ) : (
@@ -576,27 +574,20 @@ function App() {
                       {(() => {
                         // Handle fallback for invalid modes
                         const hasEvents = selectedFlowEvents.length > 0
-                        const effectiveMode = (!hasEvents && responseViewMode === 'events')
-                          ? 'http'
-                          : responseViewMode
+                        const effectiveMode = 
+                          (responseViewMode === 'raw' && !selectedFlow.hasRawHttp) ? 'http' :
+                          (!hasEvents && responseViewMode === 'events') ? 'http' :
+                          responseViewMode
                         
-                        if (effectiveMode === 'raw') {
-                          if (selectedFlow.hasRawHttp) {
-                            return <FetchedRawHttpView flowId={selectedFlow.id} type="response" />
-                          }
-                          // Raw not available - show message
-                          return (
-                            <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-                              Raw HTTP not available for streaming responses
-                            </div>
-                          )
+                        if (effectiveMode === 'raw' && selectedFlow.hasRawHttp) {
+                          return <FetchedRawHttpView flowId={selectedFlow.id} type="response" />
                         }
                         if (effectiveMode === 'http') {
                           return (
                             <div>
                               <HeadersView headers={selectedFlow.response.headers} />
                               {selectedFlow.response.body ? (
-                                <RawBodyView body={selectedFlow.response.body} />
+                                <BodyView body={selectedFlow.response.body} />
                               ) : null}
                             </div>
                           )
@@ -646,7 +637,7 @@ function App() {
                           <div>
                             <HeadersView headers={selectedFlow.response.headers} />
                             {selectedFlow.response.body ? (
-                              <RawBodyView body={selectedFlow.response.body} />
+                              <BodyView body={selectedFlow.response.body} />
                             ) : null}
                           </div>
                         )
