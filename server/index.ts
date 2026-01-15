@@ -2,15 +2,13 @@ import express from 'express'
 import http from 'http'
 import https from 'https'
 import tls from 'tls'
-import zlib from 'zlib'
-import { WebSocketServer, WebSocket } from 'ws'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import type { Flow, SSEEvent } from '../shared/types.js'
+import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
-import { SSEStreamParser } from './parsers/sse-parser.js'
-import { BedrockEventStreamParser } from './parsers/bedrock-parser.js'
+import * as store from './flow-store.js'
+import { handleProxyResponse, handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = parseInt(process.env.PORT || '9090', 10)
@@ -20,63 +18,9 @@ loadOrCreateCA()
 
 const app = express()
 const server = http.createServer(app)
-const wss = new WebSocketServer({ server })
 
-const clients = new Set<WebSocket>()
-const flows = new Map<string, Flow>()
-const events = new Map<string, SSEEvent[]>()
-const rawHttp = new Map<string, { request: string; response: string }>()  // Store raw HTTP by flow ID
-
-wss.on('connection', (ws) => {
-  clients.add(ws)
-  const existingFlows = Array.from(flows.values()).slice(-100)
-  // Convert events Map to Record for JSON serialization
-  const existingEvents: Record<string, SSEEvent[]> = {}
-  for (const [flowId, flowEvents] of events.entries()) {
-    existingEvents[flowId] = flowEvents
-  }
-  ws.send(JSON.stringify({ type: 'init', flows: existingFlows, events: existingEvents }))
-  ws.on('close', () => clients.delete(ws))
-})
-
-function broadcastFlow(flow: Flow) {
-  const message = JSON.stringify({ type: 'flow', flow })
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message)
-    }
-  })
-}
-
-function broadcastEvent(flowId: string, event: SSEEvent) {
-  const message = JSON.stringify({ type: 'event', flowId, event })
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message)
-    }
-  })
-}
-
-function decompressBody(body: Buffer, encoding: string | undefined): string {
-  if (!encoding) {
-    return body.toString('utf-8')
-  }
-  
-  try {
-    if (encoding === 'gzip') {
-      return zlib.gunzipSync(body).toString('utf-8')
-    } else if (encoding === 'deflate') {
-      return zlib.inflateSync(body).toString('utf-8')
-    } else if (encoding === 'br') {
-      return zlib.brotliDecompressSync(body).toString('utf-8')
-    }
-  } catch (err) {
-    // If decompression fails, return raw string
-    console.error('Decompression error:', err)
-  }
-  
-  return body.toString('utf-8')
-}
+// Initialize WebSocket server
+store.initWebSocket(server)
 
 // Serve static files
 const distPath = path.join(__dirname, '..', 'dist')
@@ -88,14 +32,14 @@ app.get('/api/stats', (_req, res) => {
   res.json({
     requestCount,
     uptime: process.uptime(),
-    connectedClients: clients.size
+    connectedClients: store.getClientCount()
   })
 })
 
 // API to fetch raw HTTP for a flow
 app.get('/api/flows/:id/raw', (req, res) => {
   const { id } = req.params
-  const raw = rawHttp.get(id)
+  const raw = store.getRawHttp(id)
   if (!raw) {
     res.status(404).json({ error: 'Raw HTTP not found' })
     return
@@ -105,8 +49,8 @@ app.get('/api/flows/:id/raw', (req, res) => {
 
 // Debug endpoint to list all flows with raw HTTP
 app.get('/api/debug/raw-flows', (_req, res) => {
-  const entries = Array.from(rawHttp.keys())
-  res.json({ count: entries.length, flowIds: entries })
+  const flowIds = store.getRawHttpFlowIds()
+  res.json({ count: flowIds.length, flowIds })
 })
 
 // Handle HTTP proxy requests
@@ -141,8 +85,7 @@ app.use((req, res) => {
       }
     }
 
-    flows.set(id, flow)
-    broadcastFlow(flow)
+    store.saveFlow(flow)
     requestCount++
 
     const options: http.RequestOptions = {
@@ -153,116 +96,14 @@ app.use((req, res) => {
       headers: { ...req.headers, host: parsedUrl.host }
     }
 
+    const writer = createExpressWriter(res)
+
     const proxyReq = http.request(options, (proxyRes) => {
-      const contentType = proxyRes.headers['content-type'] as string | undefined
-      const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
-      const isSSE = contentType?.includes('text/event-stream')
-      const isBedrockStream = contentType?.includes('application/vnd.amazon.eventstream')
-      const isStreaming = isSSE || isBedrockStream
-      
-      // Initialize response
-      flow.response = {
-        status: proxyRes.statusCode || 500,
-        statusText: proxyRes.statusMessage || '',
-        headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-        body: undefined
-      }
-      
-      // Mark flow as streaming and broadcast initial state
-      if (isStreaming) {
-        flow.isSSE = true
-        events.set(id, [])
-        flows.set(id, flow)
-        broadcastFlow(flow)
-      }
-      
-      const responseChunks: Buffer[] = []
-      const sseParser = isSSE ? new SSEStreamParser(id) : null
-      const bedrockParser = isBedrockStream ? new BedrockEventStreamParser(id) : null
-
-      proxyRes.on('data', (chunk: Buffer) => {
-        responseChunks.push(chunk)
-        res.write(chunk)
-        
-        if (isStreaming) {
-          let newEvents: SSEEvent[] = []
-          
-          if (isSSE && sseParser) {
-            // Parse SSE events incrementally
-            const chunkStr = contentEncoding ? decompressBody(chunk, contentEncoding) : chunk.toString('utf-8')
-            newEvents = sseParser.processChunk(chunkStr)
-          } else if (isBedrockStream && bedrockParser) {
-            // Parse Bedrock event stream (binary)
-            newEvents = bedrockParser.processChunk(chunk)
-          }
-          
-          // Broadcast each event individually
-          for (const event of newEvents) {
-            const flowEvents = events.get(id) || []
-            flowEvents.push(event)
-            events.set(id, flowEvents)
-            broadcastEvent(id, event)
-          }
-        }
-      })
-
-      proxyRes.on('end', () => {
-        res.end()
-        const rawBody = Buffer.concat(responseChunks)
-        const duration = Date.now() - startTime
-
-        if (isStreaming) {
-          // Flush any remaining events
-          let remainingEvents: SSEEvent[] = []
-          if (sseParser) {
-            remainingEvents = sseParser.flush()
-          } else if (bedrockParser) {
-            remainingEvents = bedrockParser.flush()
-          }
-          
-          for (const event of remainingEvents) {
-            const flowEvents = events.get(id) || []
-            flowEvents.push(event)
-            events.set(id, flowEvents)
-            broadcastEvent(id, event)
-          }
-          flow.response!.body = isBedrockStream ? '[Bedrock Event Stream]' : decompressBody(rawBody, contentEncoding)
-          flow.duration = duration
-          flows.set(id, flow)
-          broadcastFlow(flow) // Final flow update with duration
-        } else {
-          // Non-SSE: original behavior
-          const responseBody = decompressBody(rawBody, contentEncoding)
-
-          flow.response = {
-            status: proxyRes.statusCode || 500,
-            statusText: proxyRes.statusMessage || '',
-            headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-            body: responseBody || undefined
-          }
-          flow.duration = duration
-          flows.set(id, flow)
-          broadcastFlow(flow)
-        }
-      })
-
-      res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
+      handleProxyResponse(proxyRes, { flow, startTime, writer })
     })
 
     proxyReq.on('error', (err) => {
-      console.error('Proxy request error:', err.message)
-      res.writeHead(502)
-      res.end('Bad Gateway')
-
-      flow.response = {
-        status: 502,
-        statusText: 'Bad Gateway',
-        headers: {},
-        body: err.message
-      }
-      flow.duration = Date.now() - startTime
-      flows.set(id, flow)
-      broadcastFlow(flow)
+      handleProxyError(err, flow, startTime, writer)
     })
 
     if (requestBody) {
@@ -355,10 +196,9 @@ server.on('connect', (req, clientSocket, head) => {
     }
 
     // Initialize raw HTTP storage for this flow
-    rawHttp.set(id, { request: rawRequest, response: '' })
+    store.initRawHttp(id, rawRequest)
 
-    flows.set(id, flow)
-    broadcastFlow(flow)
+    store.saveFlow(flow)
     requestCount++
 
     // Forward request to actual server
@@ -371,159 +211,20 @@ server.on('connect', (req, clientSocket, head) => {
       rejectUnauthorized: false
     }
 
+    const writer = createTlsWriter(tlsClient)
+
     const proxyReq = https.request(reqOptions, (proxyRes) => {
-      const contentType = proxyRes.headers['content-type'] as string | undefined
-      const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
-      const isSSE = contentType?.includes('text/event-stream')
-      const isBedrockStream = contentType?.includes('application/vnd.amazon.eventstream')
-      const isStreaming = isSSE || isBedrockStream
-      
-      if (isStreaming) {
-        console.log(`[Stream] Detected ${isBedrockStream ? 'Bedrock' : 'SSE'} stream for ${host}${path}`)
-        console.log(`[Stream] Content-Type: ${contentType}`)
-        console.log(`[Stream] Content-Encoding: ${contentEncoding || 'none'}`)
-      }
-      
-      // Initialize response
-      flow.response = {
-        status: proxyRes.statusCode || 500,
-        statusText: proxyRes.statusMessage || '',
-        headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-        body: undefined
-      }
-      
-      // For streaming, send headers immediately and stream to client
-      if (isStreaming) {
-        flow.isSSE = true // Reuse isSSE for any streaming response
-        flow.hasRawHttp = false // Raw HTTP not available for streaming (binary/large)
-        rawHttp.delete(id) // Remove the raw HTTP entry since we won't have the full response
-        events.set(id, [])
-        
-        let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
-        for (const [key, value] of Object.entries(proxyRes.headers)) {
-          if (value) {
-            responseHeader += `${key}: ${Array.isArray(value) ? value.join(', ') : value}\r\n`
-          }
-        }
-        responseHeader += '\r\n'
-        tlsClient.write(responseHeader)
-        
-        // Broadcast initial flow state
-        flows.set(id, flow)
-        broadcastFlow(flow)
-      }
-      
-      const responseChunks: Buffer[] = []
-      const sseParser = isSSE ? new SSEStreamParser(id) : null
-      const bedrockParser = isBedrockStream ? new BedrockEventStreamParser(id) : null
-
-      proxyRes.on('data', (chunk: Buffer) => {
-        responseChunks.push(chunk)
-        
-        if (isStreaming) {
-          // Stream chunk directly to client
-          tlsClient.write(chunk)
-          
-          let newEvents: SSEEvent[] = []
-          
-          if (isSSE && sseParser) {
-            // Parse SSE events incrementally
-            const chunkStr = contentEncoding ? decompressBody(chunk, contentEncoding) : chunk.toString('utf-8')
-            newEvents = sseParser.processChunk(chunkStr)
-          } else if (isBedrockStream && bedrockParser) {
-            // Parse Bedrock event stream (binary)
-            newEvents = bedrockParser.processChunk(chunk)
-          }
-          
-          // Broadcast each event individually
-          for (const event of newEvents) {
-            console.log(`[Stream HTTPS] Broadcasting event: ${event.eventId}`)
-            const flowEvents = events.get(id) || []
-            flowEvents.push(event)
-            events.set(id, flowEvents)
-            broadcastEvent(id, event)
-          }
-        }
-      })
-
-      proxyRes.on('end', () => {
-        const rawBody = Buffer.concat(responseChunks)
-        const duration = Date.now() - startTime
-
-        if (isStreaming) {
-          // Flush any remaining events
-          let remainingEvents: SSEEvent[] = []
-          if (sseParser) {
-            remainingEvents = sseParser.flush()
-          } else if (bedrockParser) {
-            remainingEvents = bedrockParser.flush()
-          }
-          
-          for (const event of remainingEvents) {
-            console.log(`[Stream HTTPS] Flushing event: ${event.eventId}`)
-            const flowEvents = events.get(id) || []
-            flowEvents.push(event)
-            events.set(id, flowEvents)
-            broadcastEvent(id, event)
-          }
-          const totalEvents = events.get(id)?.length || 0
-          console.log(`[Stream HTTPS] Stream ended with ${totalEvents} total events`)
-          // For Bedrock, don't try to decompress since it's binary
-          flow.response!.body = isBedrockStream ? '[Bedrock Event Stream]' : decompressBody(rawBody, contentEncoding)
-          flow.duration = duration
-          flows.set(id, flow)
-          broadcastFlow(flow) // Final flow update with duration
-        } else {
-          // Non-SSE: original behavior
-          const decompressedBody = decompressBody(rawBody, contentEncoding)
-          
-          flow.response = {
-            status: proxyRes.statusCode || 500,
-            statusText: proxyRes.statusMessage || '',
-            headers: proxyRes.headers as Record<string, string | string[] | undefined>,
-            body: decompressedBody || undefined
-          }
-          flow.duration = duration
-          flows.set(id, flow)
-          broadcastFlow(flow)
-
-          // Build response header for client
-          let responseHeader = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
-          for (const [key, value] of Object.entries(proxyRes.headers)) {
-            if (value && key !== 'transfer-encoding') {
-              responseHeader += `${key}: ${Array.isArray(value) ? value.join(', ') : value}\r\n`
-            }
-          }
-          responseHeader += `content-length: ${rawBody.length}\r\n`
-          responseHeader += '\r\n'
-
-          // Store raw HTTP response
-          const rawEntry = rawHttp.get(id)
-          if (rawEntry) {
-            rawEntry.response = responseHeader + rawBody.toString('utf-8')
-          }
-
-          tlsClient.write(responseHeader)
-          tlsClient.write(rawBody)
-        }
+      handleProxyResponse(proxyRes, {
+        flow,
+        startTime,
+        writer,
+        storeRawHttp: true,
+        verbose: true
       })
     })
 
     proxyReq.on('error', (err) => {
-      console.error('Proxy request error:', err.message)
-
-      flow.response = {
-        status: 502,
-        statusText: 'Bad Gateway',
-        headers: {},
-        body: err.message
-      }
-      flow.duration = Date.now() - startTime
-      flows.set(id, flow)
-      broadcastFlow(flow)
-
-      const errorResponse = `HTTP/1.1 502 Bad Gateway\r\ncontent-length: ${err.message.length}\r\n\r\n${err.message}`
-      tlsClient.write(errorResponse)
+      handleProxyError(err, flow, startTime, writer)
     })
 
     if (body) {
