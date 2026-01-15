@@ -33,17 +33,17 @@ const colorClasses: Record<SectionColor, { border: string; text: string }> = {
 
 // Semantic section types mapped to colors - change colors here to update everywhere
 export const sectionTypeColors = {
-  tools: 'slate',
+  tools: 'blue',
   events: 'slate',
-  messages: 'slate',
+  messages: 'teal',
   content: 'slate',
   general: 'slate',
   headers: 'slate',
-  system: 'slate',
+  system: 'amber',
   usage: 'slate',
   body: 'slate',
   user: 'red',
-  assistant: 'emerald',
+  assistant: 'purple',
   error: 'slate',
 } as const satisfies Record<string, SectionColor>
 
