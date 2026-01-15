@@ -8,7 +8,7 @@ import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
-import { handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
+import { handleProxyError, handleProxyResponse, createExpressWriter, createTlsWriter } from './proxy-handler.js'
 import {
   registerProvider,
   setActiveProvider,

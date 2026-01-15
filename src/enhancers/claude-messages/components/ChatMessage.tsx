@@ -157,12 +157,18 @@ export function ChatMessage({ message, index, hasCacheBreakpoint }: ChatMessageP
                 Click to expand {(content as ContentBlockType[]).length} blocks →
               </span>
             </button>
+          ) : typeof content === 'string' ? (
+            <div className="px-3 py-2.5">
+              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-foreground/90">
+                {content}
+              </p>
+            </div>
           ) : (
             <div className="px-3 py-2.5 space-y-3">
-              {(content as ContentBlockType[]).map((block: ContentBlockType, i: number) => (
+              {content.map((block: ContentBlockType, i: number) => (
                 <ContentBlock key={i} block={block} />
               ))}
-              <button 
+              <button
                 onClick={() => setExpanded(false)}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >

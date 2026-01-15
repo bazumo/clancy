@@ -169,6 +169,7 @@ export function handleProxyResponse(
         const headersToSend = { ...proxyRes.headers }
         delete headersToSend['content-encoding']
         delete headersToSend['content-length']
+        delete headersToSend['transfer-encoding']
         headersToSend['content-length'] = decompressedBuf.length
         writer.writeHead(proxyRes.statusCode || 500, headersToSend)
         writer.write(decompressedBuf)
