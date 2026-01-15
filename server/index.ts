@@ -8,28 +8,46 @@ import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
-import { handleProxyResponse, handleProxyError, handleCycleTLSResponse, createExpressWriter, createTlsWriter } from './proxy-handler.js'
-import { getCycleClient, cycleFetch, setTLSProfile, getTLSProfile, shutdownCycleClient, TLS_PROFILES, type TLSProfile } from './cycle-client.js'
-
-// TLS fingerprinting configuration
-const USE_CYCLETLS = process.env.USE_CYCLETLS !== 'false' // Enabled by default
-const TLS_PROFILE = (process.env.TLS_PROFILE || 'electron') as TLSProfile
+import { handleProxyResponse, handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
+import {
+  registerProvider,
+  setActiveProvider,
+  getActiveProvider,
+  tlsConnect,
+  shutdownActiveProvider,
+  getAvailableProviders,
+  type TLSFingerprint
+} from './tls-provider.js'
+import { utlsProvider } from './tls-provider-utls.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = parseInt(process.env.PORT || '9090', 10)
 
+// TLS fingerprinting configuration
+const TLS_PROVIDER = process.env.TLS_PROVIDER || 'utls' // 'utls' or 'native'
+const TLS_FINGERPRINT = (process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint
+
 // Initialize CA
 loadOrCreateCA()
 
-// Initialize TLS profile
-if (USE_CYCLETLS) {
-  setTLSProfile(TLS_PROFILE)
-  // Pre-initialize CycleTLS client
-  getCycleClient().then(() => {
-    console.log(`[CycleTLS] Ready with profile: ${getTLSProfile()}`)
-  }).catch(err => {
-    console.error('[CycleTLS] Failed to initialize:', err.message)
-  })
+// Register TLS providers
+registerProvider(utlsProvider)
+
+// Initialize TLS provider
+async function initTLSProvider() {
+  if (TLS_PROVIDER === 'native') {
+    console.log('[TLS] Using native Node.js TLS (no fingerprint spoofing)')
+    return
+  }
+
+  try {
+    utlsProvider.setDefaultFingerprint(TLS_FINGERPRINT)
+    await setActiveProvider('utls')
+    console.log(`[TLS] Provider: utls, fingerprint: ${TLS_FINGERPRINT}`)
+  } catch (err) {
+    console.error('[TLS] Failed to initialize utls provider:', (err as Error).message)
+    console.log('[TLS] Falling back to native TLS')
+  }
 }
 
 const app = express()
@@ -71,21 +89,25 @@ app.get('/api/debug/raw-flows', (_req, res) => {
 
 // TLS fingerprinting configuration endpoints
 app.get('/api/tls/config', (_req, res) => {
+  const provider = getActiveProvider()
   res.json({
-    enabled: USE_CYCLETLS,
-    profile: getTLSProfile(),
-    availableProfiles: Object.keys(TLS_PROFILES)
+    provider: provider?.name || 'native',
+    fingerprint: provider?.name === 'utls' ? utlsProvider.getDefaultFingerprint() : null,
+    availableProviders: ['native', ...getAvailableProviders()],
+    availableFingerprints: [
+      'chrome120', 'chrome102', 'chrome100',
+      'firefox120', 'firefox105', 'firefox102',
+      'safari16', 'edge106', 'edge85',
+      'ios14', 'android11', 'electron',
+      'randomized', 'golanghttp2'
+    ]
   })
 })
 
-app.post('/api/tls/profile/:profile', express.json(), (req, res) => {
-  const profile = req.params.profile as TLSProfile
-  if (!TLS_PROFILES[profile]) {
-    res.status(400).json({ error: `Invalid profile. Available: ${Object.keys(TLS_PROFILES).join(', ')}` })
-    return
-  }
-  setTLSProfile(profile)
-  res.json({ success: true, profile })
+app.post('/api/tls/fingerprint/:fingerprint', express.json(), (req, res) => {
+  const fingerprint = req.params.fingerprint as TLSFingerprint
+  utlsProvider.setDefaultFingerprint(fingerprint)
+  res.json({ success: true, fingerprint })
 })
 
 // Handle HTTP proxy requests
@@ -149,7 +171,7 @@ app.use((req, res) => {
 })
 
 // Handle HTTPS CONNECT with TLS interception
-server.on('connect', (req, clientSocket, head) => {
+server.on('connect', (req, clientSocket) => {
   const [host, portStr] = (req.url || '').split(':')
   const port = parseInt(portStr) || 443
 
@@ -184,7 +206,7 @@ server.on('connect', (req, clientSocket, head) => {
 
     const headerPart = buffer.slice(0, headerEnd).toString('utf-8')
     const lines = headerPart.split('\r\n')
-    const [method, path] = lines[0].split(' ')
+    const [method, reqPath] = lines[0].split(' ')
 
     const headers: Record<string, string> = {}
     for (let i = 1; i < lines.length; i++) {
@@ -213,7 +235,7 @@ server.on('connect', (req, clientSocket, head) => {
     // Create flow
     const id = generateId()
     const startTime = Date.now()
-    const url = `https://${host}${path}`
+    const url = `https://${host}${reqPath}`
 
     const flow: Flow = {
       id,
@@ -223,7 +245,7 @@ server.on('connect', (req, clientSocket, head) => {
       request: {
         method,
         url,
-        path,
+        path: reqPath,
         headers,
         body
       },
@@ -238,58 +260,14 @@ server.on('connect', (req, clientSocket, head) => {
 
     // Forward request to actual server
     const writer = createTlsWriter(tlsClient)
+    const provider = getActiveProvider()
 
-    if (USE_CYCLETLS) {
-      // Use CycleTLS for TLS fingerprint impersonation
-      // Filter out content-length as CycleTLS will calculate it from the body
-      const cycleHeaders = { ...headers, host }
-      delete cycleHeaders['content-length']
-      delete cycleHeaders['transfer-encoding']
-      
-      cycleFetch(url, {
-        method,
-        headers: cycleHeaders,
-        body: body || undefined
-      }).then((cycleRes) => {
-        handleCycleTLSResponse(cycleRes, {
-          flow,
-          startTime,
-          writer,
-          storeRawHttp: true,
-          verbose: true
-        })
-      }).catch((err) => {
-        handleProxyError(err, flow, startTime, writer)
-      })
+    if (provider && provider.isReady()) {
+      // Use TLS provider for fingerprint impersonation
+      forwardWithProvider(host, port, method, reqPath, headers, body, flow, startTime, writer)
     } else {
-      // Fall back to native https (no fingerprint impersonation)
-      const reqOptions: https.RequestOptions = {
-        hostname: host,
-        port,
-        path,
-        method,
-        headers: { ...headers, host },
-        rejectUnauthorized: false
-      }
-
-      const proxyReq = https.request(reqOptions, (proxyRes) => {
-        handleProxyResponse(proxyRes, {
-          flow,
-          startTime,
-          writer,
-          storeRawHttp: true,
-          verbose: true
-        })
-      })
-
-      proxyReq.on('error', (err) => {
-        handleProxyError(err, flow, startTime, writer)
-      })
-
-      if (body) {
-        proxyReq.write(body)
-      }
-      proxyReq.end()
+      // Fall back to native https
+      forwardWithNativeTLS(host, port, method, reqPath, headers, body, flow, startTime, writer)
     }
 
     // Process any remaining data in buffer
@@ -304,29 +282,207 @@ server.on('connect', (req, clientSocket, head) => {
   })
 })
 
-server.listen(PORT, () => {
-  console.log(`Claudeoscope proxy running on http://localhost:${PORT}`)
-  console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
-  if (USE_CYCLETLS) {
-    console.log(`TLS fingerprint impersonation: enabled (profile: ${TLS_PROFILE})`)
-  } else {
-    console.log('TLS fingerprint impersonation: disabled')
+/**
+ * Forward request using the TLS provider (utls)
+ */
+async function forwardWithProvider(
+  host: string,
+  port: number,
+  method: string,
+  reqPath: string,
+  headers: Record<string, string>,
+  body: string | undefined,
+  flow: Flow,
+  startTime: number,
+  writer: ReturnType<typeof createTlsWriter>
+) {
+  try {
+    // Connect to target using TLS provider
+    const targetSocket = await tlsConnect({
+      host,
+      port,
+      fingerprint: utlsProvider.getDefaultFingerprint()
+    })
+
+    // Build HTTP request
+    let httpRequest = `${method} ${reqPath} HTTP/1.1\r\n`
+    httpRequest += `Host: ${host}\r\n`
+    
+    for (const [key, value] of Object.entries(headers)) {
+      if (key.toLowerCase() !== 'host') {
+        httpRequest += `${key}: ${value}\r\n`
+      }
+    }
+    httpRequest += '\r\n'
+
+    // Write request
+    targetSocket.write(httpRequest)
+    if (body) {
+      targetSocket.write(body)
+    }
+
+    // Read and forward response manually
+    let responseBuffer = Buffer.alloc(0)
+    let headersParsed = false
+    let statusCode = 0
+    let statusMessage = ''
+    let responseHeaders: Record<string, string> = {}
+    let contentLength = -1
+    let isChunked = false
+    let bodyBuffer = Buffer.alloc(0)
+    
+    const processResponse = () => {
+      // Parse headers if not done yet
+      if (!headersParsed) {
+        const headerEnd = responseBuffer.indexOf('\r\n\r\n')
+        if (headerEnd === -1) return // Need more data
+        
+        headersParsed = true
+        const headerStr = responseBuffer.slice(0, headerEnd).toString('utf-8')
+        bodyBuffer = responseBuffer.slice(headerEnd + 4)
+        responseBuffer = Buffer.alloc(0)
+        
+        // Parse status line
+        const lines = headerStr.split('\r\n')
+        const statusMatch = lines[0].match(/HTTP\/[\d.]+ (\d+) ?(.*)/)
+        statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500
+        statusMessage = statusMatch ? statusMatch[2] || '' : 'Unknown'
+        
+        // Parse headers
+        for (let i = 1; i < lines.length; i++) {
+          const colonIdx = lines[i].indexOf(':')
+          if (colonIdx > 0) {
+            const key = lines[i].slice(0, colonIdx).toLowerCase()
+            const value = lines[i].slice(colonIdx + 1).trim()
+            responseHeaders[key] = value
+          }
+        }
+        
+        contentLength = parseInt(responseHeaders['content-length'] || '-1', 10)
+        isChunked = responseHeaders['transfer-encoding']?.toLowerCase() === 'chunked'
+      }
+    }
+    
+    targetSocket.on('data', (chunk: Buffer) => {
+      if (!headersParsed) {
+        responseBuffer = Buffer.concat([responseBuffer, chunk])
+        processResponse()
+      } else {
+        bodyBuffer = Buffer.concat([bodyBuffer, chunk])
+      }
+    })
+    
+    targetSocket.on('end', () => {
+      // Finalize response
+      flow.response = {
+        status: statusCode,
+        statusText: statusMessage,
+        headers: responseHeaders,
+        body: bodyBuffer.toString('utf-8') || undefined
+      }
+      flow.duration = Date.now() - startTime
+      store.saveFlow(flow)
+      
+      // Send response to client
+      writer.writeHead(statusCode, responseHeaders)
+      writer.write(bodyBuffer)
+      writer.end()
+    })
+    
+    targetSocket.on('error', (err) => {
+      handleProxyError(err, flow, startTime, writer)
+    })
+    
+    targetSocket.on('close', () => {
+      // If we have headers but end wasn't called, finalize now
+      if (headersParsed && !flow.response) {
+        flow.response = {
+          status: statusCode,
+          statusText: statusMessage,
+          headers: responseHeaders,
+          body: bodyBuffer.toString('utf-8') || undefined
+        }
+        flow.duration = Date.now() - startTime
+        store.saveFlow(flow)
+        
+        writer.writeHead(statusCode, responseHeaders)
+        writer.write(bodyBuffer)
+        writer.end()
+      }
+    })
+    
+  } catch (err) {
+    handleProxyError(err as Error, flow, startTime, writer)
   }
+}
+
+/**
+ * Forward request using native Node.js TLS (no fingerprint spoofing)
+ */
+function forwardWithNativeTLS(
+  host: string,
+  port: number,
+  method: string,
+  reqPath: string,
+  headers: Record<string, string>,
+  body: string | undefined,
+  flow: Flow,
+  startTime: number,
+  writer: ReturnType<typeof createTlsWriter>
+) {
+  const reqOptions: https.RequestOptions = {
+    hostname: host,
+    port,
+    path: reqPath,
+    method,
+    headers: { ...headers, host },
+    rejectUnauthorized: false
+  }
+
+  const proxyReq = https.request(reqOptions, (proxyRes) => {
+    handleProxyResponse(proxyRes, {
+      flow,
+      startTime,
+      writer,
+      storeRawHttp: true,
+      verbose: false
+    })
+  })
+
+  proxyReq.on('error', (err) => {
+    handleProxyError(err, flow, startTime, writer)
+  })
+
+  if (body) {
+    proxyReq.write(body)
+  }
+  proxyReq.end()
+}
+
+// Start server
+async function start() {
+  await initTLSProvider()
+
+  server.listen(PORT, () => {
+    console.log(`Claudeoscope proxy running on http://localhost:${PORT}`)
+    console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
+  })
+}
+
+start().catch((err) => {
+  console.error('Failed to start server:', err)
+  process.exit(1)
 })
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down...')
-  if (USE_CYCLETLS) {
-    await shutdownCycleClient()
-  }
+  await shutdownActiveProvider()
   process.exit(0)
 })
 
 process.on('SIGTERM', async () => {
   console.log('\nShutting down...')
-  if (USE_CYCLETLS) {
-    await shutdownCycleClient()
-  }
+  await shutdownActiveProvider()
   process.exit(0)
 })
