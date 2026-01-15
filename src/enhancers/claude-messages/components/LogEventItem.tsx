@@ -33,14 +33,28 @@ function formatBody(body: string): string {
 
 // Map event types to colors for the log view
 const eventTypeColors: Record<string, { dot: string; text: string; bg: string }> = {
+  // Message events
   message_start: { dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   message_delta: { dot: 'bg-amber-400', text: 'text-amber-400', bg: 'bg-amber-500/10' },
   message_stop: { dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+  
+  // Content block events
   content_block_start: { dot: 'bg-blue-400', text: 'text-blue-400', bg: 'bg-blue-500/10' },
   content_block_delta: { dot: 'bg-cyan-400', text: 'text-cyan-400', bg: 'bg-cyan-500/10' },
   content_block_stop: { dot: 'bg-slate-400', text: 'text-slate-400', bg: 'bg-slate-500/10' },
+  
+  // Utility events
   ping: { dot: 'bg-slate-500', text: 'text-slate-500', bg: 'bg-slate-500/5' },
   error: { dot: 'bg-red-400', text: 'text-red-400', bg: 'bg-red-500/10' },
+}
+
+// Map delta types to colors
+const deltaTypeColors: Record<string, string> = {
+  text_delta: 'text-foreground',
+  thinking_delta: 'text-purple-400',
+  signature_delta: 'text-purple-300',
+  input_json_delta: 'text-blue-400',
+  citations_delta: 'text-cyan-400',
 }
 
 function getEventType(data: string): string {
@@ -58,9 +72,21 @@ function getPreview(data: string): string {
     
     // For content_block_delta, show the text/thinking preview
     if (parsed.type === 'content_block_delta' && parsed.delta) {
-      if (parsed.delta.text) return parsed.delta.text.slice(0, 60)
-      if (parsed.delta.thinking) return parsed.delta.thinking.slice(0, 60)
-      if (parsed.delta.partial_json) return 'partial_json'
+      if (parsed.delta.type === 'text_delta' && parsed.delta.text) {
+        return parsed.delta.text.slice(0, 60)
+      }
+      if (parsed.delta.type === 'thinking_delta' && parsed.delta.thinking) {
+        return `[thinking] ${parsed.delta.thinking.slice(0, 50)}`
+      }
+      if (parsed.delta.type === 'signature_delta') {
+        return '[signature]'
+      }
+      if (parsed.delta.type === 'input_json_delta' && parsed.delta.partial_json) {
+        return `[json] ${parsed.delta.partial_json.slice(0, 40)}`
+      }
+      if (parsed.delta.type === 'citations_delta') {
+        return `[citation] ${parsed.delta.citation?.type || ''}`
+      }
     }
     
     // For message_start, show model
@@ -75,9 +101,34 @@ function getPreview(data: string): string {
     
     // For content_block_start, show block type
     if (parsed.type === 'content_block_start' && parsed.content_block?.type) {
-      return parsed.content_block.type
+      const blockType = parsed.content_block.type
+      // Add more context for certain block types
+      if (blockType === 'tool_use' && parsed.content_block.name) {
+        return `${blockType}: ${parsed.content_block.name}`
+      }
+      if (blockType === 'server_tool_use' && parsed.content_block.name) {
+        return `${blockType}: ${parsed.content_block.name}`
+      }
+      return blockType
     }
     
+    // For errors, show error message
+    if (parsed.type === 'error' && parsed.error?.message) {
+      return parsed.error.message.slice(0, 60)
+    }
+    
+    return ''
+  } catch {
+    return ''
+  }
+}
+
+function getDeltaTypeColor(data: string): string {
+  try {
+    const parsed = JSON.parse(data)
+    if (parsed.type === 'content_block_delta' && parsed.delta?.type) {
+      return deltaTypeColors[parsed.delta.type] || 'text-muted-foreground'
+    }
     return ''
   } catch {
     return ''
@@ -96,6 +147,7 @@ export function LogEventItem({
   const eventType = event.event || getEventType(event.data)
   const colors = eventTypeColors[eventType] || { dot: 'bg-slate-400', text: 'text-slate-400', bg: 'bg-slate-500/5' }
   const preview = getPreview(event.data)
+  const deltaColor = getDeltaTypeColor(event.data)
   
   return (
     <div className={cn(
@@ -141,7 +193,10 @@ export function LogEventItem({
         
         {/* Preview */}
         {preview && (
-          <span className="text-muted-foreground/60 truncate flex-1">
+          <span className={cn(
+            'truncate flex-1',
+            deltaColor || 'text-muted-foreground/60'
+          )}>
             {preview}
           </span>
         )}
@@ -173,4 +228,3 @@ export function LogEventItem({
     </div>
   )
 }
-

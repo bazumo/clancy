@@ -1,9 +1,9 @@
-import type { Message, ContentBlock as ContentBlockType } from '../types'
+import type { MessageContent, ContentBlock as ContentBlockType } from '../types'
 import { ContentBlock } from './ContentBlock'
 import { CollapsibleSection, sectionTypeColors } from '@/components'
 
 interface MessageViewProps {
-  message: Message
+  message: MessageContent
   index: number
   defaultExpanded?: boolean
 }

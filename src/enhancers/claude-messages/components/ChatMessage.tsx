@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import type { Message, ContentBlock as ContentBlockType, CacheControl } from '../types'
+import type { MessageContent, ContentBlock as ContentBlockType, CacheControl } from '../types'
 import { ContentBlock } from './ContentBlock'
 
 interface ChatMessageProps {
-  message: Message
+  message: MessageContent
   index: number
   /** Whether this message has cache_control set (marks cache boundary) */
   hasCacheBreakpoint?: boolean
@@ -59,6 +59,21 @@ const CacheIcon = () => (
   </svg>
 )
 
+// Content type badge colors
+const contentTypeBadgeColors: Record<string, string> = {
+  text: '',
+  thinking: 'bg-purple-500/15 text-purple-400',
+  redacted_thinking: 'bg-purple-500/10 text-purple-400/70',
+  tool_use: 'bg-blue-500/15 text-blue-400',
+  tool_result: 'bg-emerald-500/15 text-emerald-400',
+  image: 'bg-cyan-500/15 text-cyan-400',
+  document: 'bg-amber-500/15 text-amber-400',
+  search_result: 'bg-teal-500/15 text-teal-400',
+  server_tool_use: 'bg-indigo-500/15 text-indigo-400',
+  web_search_tool_result: 'bg-cyan-500/15 text-cyan-400',
+  web_search_result: 'bg-cyan-500/10 text-cyan-400/70',
+}
+
 export function ChatMessage({ message, index, hasCacheBreakpoint }: ChatMessageProps) {
   const [expanded, setExpanded] = useState(false)
   const isUser = message.role === 'user'
@@ -95,20 +110,17 @@ export function ChatMessage({ message, index, hasCacheBreakpoint }: ChatMessageP
           </div>
           <span className="text-[10px] text-muted-foreground/50 font-mono">#{index}</span>
           {hasComplexContent && (
-            <div className="flex gap-1 ml-auto">
+            <div className="flex gap-1 ml-auto flex-wrap">
               {Object.entries(contentTypes).map(([type, count]) => (
                 type !== 'text' && (
                   <span 
                     key={type}
                     className={cn(
-                      'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                      type === 'thinking' && 'bg-purple-500/15 text-purple-400',
-                      type === 'tool_use' && 'bg-blue-500/15 text-blue-400',
-                      type === 'tool_result' && 'bg-emerald-500/15 text-emerald-400',
-                      type === 'image' && 'bg-cyan-500/15 text-cyan-400',
+                      'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                      contentTypeBadgeColors[type] || 'bg-muted text-muted-foreground'
                     )}
                   >
-                    {count} {type.replace('_', ' ')}
+                    {count} {type.replace(/_/g, ' ')}
                   </span>
                 )
               ))}
@@ -171,7 +183,10 @@ export function ChatMessage({ message, index, hasCacheBreakpoint }: ChatMessageP
             <span className="px-2 py-0.5 text-[10px] font-mono bg-background text-amber-400 flex items-center gap-1.5">
               <CacheIcon />
               <span className="opacity-70">↑ cached up to here</span>
-              <span className="text-amber-500">cache_control: {cacheControl.type}</span>
+              <span className="text-amber-500">
+                cache_control: {cacheControl.type}
+                {cacheControl.ttl && ` (${cacheControl.ttl})`}
+              </span>
             </span>
           </div>
         </div>

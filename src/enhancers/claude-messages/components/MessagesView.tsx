@@ -1,20 +1,20 @@
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import type { Message, ContentBlock as ContentBlockType } from '../types'
+import type { MessageContent, ContentBlock as ContentBlockType } from '../types'
 import { ChatMessage } from './ChatMessage'
 import { sectionIcons } from '@/components'
 
 interface MessagesViewProps {
-  messages: Message[]
+  messages: MessageContent[]
   defaultExpanded?: boolean
 }
 
 // Find the last index that has cache_control set
-function findLastCacheBreakpointIndex(messages: Message[]): number {
+function findLastCacheBreakpointIndex(messages: MessageContent[]): number {
   let lastIndex = -1
   messages.forEach((message, index) => {
     if (typeof message.content !== 'string') {
-      const hasCache = message.content.some(
+      const hasCache = (message.content as ContentBlockType[]).some(
         (block: ContentBlockType) => 'cache_control' in block && block.cache_control
       )
       if (hasCache) {

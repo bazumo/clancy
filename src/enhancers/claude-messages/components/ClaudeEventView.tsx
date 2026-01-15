@@ -1,5 +1,14 @@
 import type { EventProps } from '../../types'
-import type { StreamEvent, ContentBlockStartEvent, ContentBlockDeltaEvent } from '../types'
+import type { 
+  StreamEvent, 
+  ContentBlockStartEvent, 
+  ContentBlockDeltaEvent,
+  TextDelta,
+  ThinkingDelta,
+  InputJsonDelta,
+  SignatureDelta,
+  CitationsDelta,
+} from '../types'
 
 export function ClaudeEventView({ parsed }: EventProps) {
   const event = parsed as StreamEvent | null
@@ -44,29 +53,41 @@ export function ClaudeEventView({ parsed }: EventProps) {
     
     case 'content_block_delta': {
       const deltaEvent = event as ContentBlockDeltaEvent
+      const delta = deltaEvent.delta
+      
       return (
         <div className="text-xs space-y-1">
           <div className="flex items-center gap-2">
             <span className="font-medium text-cyan-400">Delta</span>
             <span className="text-muted-foreground">index: {deltaEvent.index}</span>
             <span className="font-mono px-1.5 py-0.5 rounded bg-muted text-foreground">
-              {deltaEvent.delta.type}
+              {delta.type}
             </span>
           </div>
-          {deltaEvent.delta.text && (
+          {delta.type === 'text_delta' && (
             <pre className="whitespace-pre-wrap break-words text-foreground/80 bg-muted/30 rounded px-2 py-1">
-              {deltaEvent.delta.text}
+              {(delta as TextDelta).text}
             </pre>
           )}
-          {deltaEvent.delta.thinking && (
+          {delta.type === 'thinking_delta' && (
             <pre className="whitespace-pre-wrap break-words text-purple-400/80 bg-purple-500/10 rounded px-2 py-1">
-              {deltaEvent.delta.thinking}
+              {(delta as ThinkingDelta).thinking}
             </pre>
           )}
-          {deltaEvent.delta.partial_json && (
-            <pre className="whitespace-pre-wrap break-words text-blue-400/80 bg-blue-500/10 rounded px-2 py-1">
-              {deltaEvent.delta.partial_json}
+          {delta.type === 'signature_delta' && (
+            <pre className="whitespace-pre-wrap break-words text-purple-300/80 bg-purple-500/5 rounded px-2 py-1">
+              [signature] {(delta as SignatureDelta).signature.slice(0, 50)}...
             </pre>
+          )}
+          {delta.type === 'input_json_delta' && (
+            <pre className="whitespace-pre-wrap break-words text-blue-400/80 bg-blue-500/10 rounded px-2 py-1">
+              {(delta as InputJsonDelta).partial_json}
+            </pre>
+          )}
+          {delta.type === 'citations_delta' && (
+            <div className="text-cyan-400/80 bg-cyan-500/10 rounded px-2 py-1">
+              Citation: {(delta as CitationsDelta).citation.type}
+            </div>
           )}
         </div>
       )
@@ -128,4 +149,3 @@ export function ClaudeEventView({ parsed }: EventProps) {
       )
   }
 }
-
