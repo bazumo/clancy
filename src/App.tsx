@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useWebSocket, useFlowStore, useFilters, useSelection } from '@/hooks'
+import { FlowProvider, useFlowContext, SelectionProvider, useSelectionContext } from '@/contexts'
+import { useFilters } from '@/hooks'
 import { Header } from '@/components/layout/Header'
 import { FilterBox } from '@/components/sidebar/FilterBox'
 import { FlowListItem } from '@/components/sidebar/FlowListItem'
@@ -8,30 +9,14 @@ import { EventListItem } from '@/components/sidebar/EventListItem'
 import { RequestSection } from '@/components/detail/RequestSection'
 import { ResponseSection } from '@/components/detail/ResponseSection'
 
-function App() {
-  // Data management
-  const { flows, events, handleMessage, clearAll, totalEvents } = useFlowStore()
+function AppContent() {
+  // Get data from context
+  const { flows, events, connected, totalEvents, clearAll } = useFlowContext()
 
-  // WebSocket connection
-  const { connected } = useWebSocket({ onMessage: handleMessage })
+  // Filtering (uses URL params internally via useFilterParams)
+  const { filteredItems, flowTagsMap, uniqueTags, uniqueEventTypes } = useFilters(flows, events)
 
-  // Filtering
-  const {
-    filterState,
-    filteredItems,
-    flowTagsMap,
-    uniqueTags,
-    uniqueEventTypes,
-    activeFilterCount,
-    setSearchText,
-    setItemType,
-    setEventType,
-    toggleTag,
-    setExpanded,
-    clearFilters,
-  } = useFilters(flows, events)
-
-  // Selection state
+  // Selection from context
   const {
     selectedFlowId,
     selectedEventId,
@@ -47,7 +32,7 @@ function App() {
     clearSelection,
     setRequestViewMode,
     setResponseViewMode,
-  } = useSelection({ flows, events, flowTagsMap })
+  } = useSelectionContext()
 
   // Clear all data and selection
   const handleClear = useCallback(() => {
@@ -67,22 +52,7 @@ function App() {
       <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
         <aside className="w-80 border-r border-border shrink-0 flex flex-col min-h-0">
-          <FilterBox
-            expanded={filterState.expanded}
-            onExpandedChange={setExpanded}
-            searchText={filterState.searchText}
-            onSearchTextChange={setSearchText}
-            itemType={filterState.itemType}
-            onItemTypeChange={setItemType}
-            eventType={filterState.eventType}
-            onEventTypeChange={setEventType}
-            tags={filterState.tags}
-            onTagToggle={toggleTag}
-            onClearFilters={clearFilters}
-            activeFilterCount={activeFilterCount}
-            uniqueEventTypes={uniqueEventTypes}
-            uniqueTags={uniqueTags}
-          />
+          <FilterBox uniqueEventTypes={uniqueEventTypes} uniqueTags={uniqueTags} />
 
           <ScrollArea className="flex-1 min-h-0">
             {filteredItems.length === 0 ? (
@@ -148,6 +118,25 @@ function App() {
         </main>
       </div>
     </div>
+  )
+}
+
+function AppWithSelection() {
+  const { flows, events } = useFlowContext()
+  const { flowTagsMap } = useFilters(flows, events)
+
+  return (
+    <SelectionProvider flowTagsMap={flowTagsMap}>
+      <AppContent />
+    </SelectionProvider>
+  )
+}
+
+function App() {
+  return (
+    <FlowProvider>
+      <AppWithSelection />
+    </FlowProvider>
   )
 }
 

@@ -1,29 +1,31 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import type { Flow, SSEEvent } from '../../shared/types'
 import { getFlowTags } from '../enhancers'
+import { useFilterParams } from './useFilterParams'
 
-export type ItemTypeFilter = 'all' | 'flows' | 'events'
-
-export interface FilterState {
-  searchText: string
-  itemType: ItemTypeFilter
-  eventType: string
-  tags: Set<string>
-  expanded: boolean
-}
+export type { ItemTypeFilter } from './useFilterParams'
 
 export type SidebarItem =
   | { type: 'flow'; flow: Flow; timestamp: string }
   | { type: 'event'; event: SSEEvent; flow: Flow; timestamp: string }
 
 export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
-  const [filterState, setFilterState] = useState<FilterState>({
-    searchText: '',
-    itemType: 'all',
-    eventType: 'all',
-    tags: new Set(),
-    expanded: false,
-  })
+  // URL-synced filter params
+  const {
+    search,
+    itemType,
+    eventType,
+    tags,
+    setSearch,
+    setItemType,
+    setEventType,
+    toggleTag,
+    clearFilters,
+    activeFilterCount,
+  } = useFilterParams()
+
+  // Local UI state (not persisted to URL)
+  const [expanded, setExpanded] = useState(false)
 
   // Compute tags for all flows
   const flowTagsMap = useMemo(() => {
@@ -36,13 +38,13 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
 
   // Get unique tags across all flows
   const uniqueTags = useMemo(() => {
-    const tags = new Set<string>()
+    const tagsSet = new Set<string>()
     for (const flowTags of flowTagsMap.values()) {
       for (const tag of flowTags) {
-        tags.add(tag)
+        tagsSet.add(tag)
       }
     }
-    return Array.from(tags).sort()
+    return Array.from(tagsSet).sort()
   }, [flowTagsMap])
 
   // Get unique event types
@@ -59,20 +61,20 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
   // Create unified sidebar items sorted by timestamp (newest first)
   const filteredItems = useMemo<SidebarItem[]>(() => {
     const items: SidebarItem[] = []
-    const searchLower = filterState.searchText.toLowerCase()
+    const searchLower = search.toLowerCase()
 
     // Add all flows (if not filtering to events only)
-    if (filterState.itemType !== 'events') {
+    if (itemType !== 'events') {
       for (const flow of flows) {
         // Apply tag filter
-        if (filterState.tags.size > 0) {
+        if (tags.size > 0) {
           const flowTags = flowTagsMap.get(flow.id) || []
-          const hasMatchingTag = flowTags.some((tag) => filterState.tags.has(tag))
+          const hasMatchingTag = flowTags.some((tag) => tags.has(tag))
           if (!hasMatchingTag) continue
         }
 
         // Apply search filter
-        if (filterState.searchText) {
+        if (search) {
           const searchable =
             `${flow.host} ${flow.request.path} ${flow.request.method} ${flow.request.url} ${flow.request.body || ''} ${flow.response?.body || ''}`.toLowerCase()
           if (!searchable.includes(searchLower)) continue
@@ -82,25 +84,25 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
     }
 
     // Add all events (if not filtering to flows only)
-    if (filterState.itemType !== 'flows') {
+    if (itemType !== 'flows') {
       for (const [flowId, flowEvents] of events.entries()) {
         const flow = flows.find((f) => f.id === flowId)
         if (flow) {
           // Apply tag filter to parent flow
-          if (filterState.tags.size > 0) {
+          if (tags.size > 0) {
             const flowTags = flowTagsMap.get(flow.id) || []
-            const hasMatchingTag = flowTags.some((tag) => filterState.tags.has(tag))
+            const hasMatchingTag = flowTags.some((tag) => tags.has(tag))
             if (!hasMatchingTag) continue
           }
 
           for (const event of flowEvents) {
             // Apply event type filter
-            const eventType = event.event || 'message'
-            if (filterState.eventType !== 'all' && eventType !== filterState.eventType) continue
+            const evtType = event.event || 'message'
+            if (eventType !== 'all' && evtType !== eventType) continue
 
             // Apply search filter
-            if (filterState.searchText) {
-              const searchable = `${flow.host} ${eventType} ${event.data}`.toLowerCase()
+            if (search) {
+              const searchable = `${flow.host} ${evtType} ${event.data}`.toLowerCase()
               if (!searchable.includes(searchLower)) continue
             }
 
@@ -114,55 +116,19 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
     items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
     return items
-  }, [flows, events, filterState, flowTagsMap])
+  }, [flows, events, search, itemType, eventType, tags, flowTagsMap])
 
-  // Count active filters
-  const activeFilterCount = useMemo(() => {
-    return (
-      (filterState.searchText ? 1 : 0) +
-      (filterState.itemType !== 'all' ? 1 : 0) +
-      (filterState.eventType !== 'all' ? 1 : 0) +
-      (filterState.tags.size > 0 ? 1 : 0)
-    )
-  }, [filterState])
-
-  const setSearchText = useCallback((searchText: string) => {
-    setFilterState((prev) => ({ ...prev, searchText }))
-  }, [])
-
-  const setItemType = useCallback((itemType: ItemTypeFilter) => {
-    setFilterState((prev) => ({ ...prev, itemType }))
-  }, [])
-
-  const setEventType = useCallback((eventType: string) => {
-    setFilterState((prev) => ({ ...prev, eventType }))
-  }, [])
-
-  const toggleTag = useCallback((tag: string) => {
-    setFilterState((prev) => {
-      const newTags = new Set(prev.tags)
-      if (newTags.has(tag)) {
-        newTags.delete(tag)
-      } else {
-        newTags.add(tag)
-      }
-      return { ...prev, tags: newTags }
-    })
-  }, [])
-
-  const setExpanded = useCallback((expanded: boolean) => {
-    setFilterState((prev) => ({ ...prev, expanded }))
-  }, [])
-
-  const clearFilters = useCallback(() => {
-    setFilterState((prev) => ({
-      ...prev,
-      searchText: '',
-      itemType: 'all',
-      eventType: 'all',
-      tags: new Set(),
-    }))
-  }, [])
+  // Build filter state object for backward compatibility
+  const filterState = useMemo(
+    () => ({
+      searchText: search,
+      itemType,
+      eventType,
+      tags,
+      expanded,
+    }),
+    [search, itemType, eventType, tags, expanded]
+  )
 
   return {
     filterState,
@@ -171,7 +137,7 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
     uniqueTags,
     uniqueEventTypes,
     activeFilterCount,
-    setSearchText,
+    setSearchText: setSearch,
     setItemType,
     setEventType,
     toggleTag,
@@ -179,4 +145,3 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
     clearFilters,
   }
 }
-

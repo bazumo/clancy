@@ -1,45 +1,36 @@
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { TagBadge } from '@/components'
-import type { ItemTypeFilter } from '@/hooks'
+import { useFilterParams } from '@/hooks/useFilterParams'
 
 interface FilterBoxProps {
-  expanded: boolean
-  onExpandedChange: (expanded: boolean) => void
-  searchText: string
-  onSearchTextChange: (text: string) => void
-  itemType: ItemTypeFilter
-  onItemTypeChange: (type: ItemTypeFilter) => void
-  eventType: string
-  onEventTypeChange: (type: string) => void
-  tags: Set<string>
-  onTagToggle: (tag: string) => void
-  onClearFilters: () => void
-  activeFilterCount: number
   uniqueEventTypes: string[]
   uniqueTags: string[]
 }
 
-export function FilterBox({
-  expanded,
-  onExpandedChange,
-  searchText,
-  onSearchTextChange,
-  itemType,
-  onItemTypeChange,
-  eventType,
-  onEventTypeChange,
-  tags,
-  onTagToggle,
-  onClearFilters,
-  activeFilterCount,
-  uniqueEventTypes,
-  uniqueTags,
-}: FilterBoxProps) {
+export function FilterBox({ uniqueEventTypes, uniqueTags }: FilterBoxProps) {
+  // URL-synced filter state
+  const {
+    search,
+    itemType,
+    eventType,
+    tags,
+    setSearch,
+    setItemType,
+    setEventType,
+    toggleTag,
+    clearFilters,
+    activeFilterCount,
+  } = useFilterParams()
+
+  // Local UI state for expansion
+  const [expanded, setExpanded] = useState(false)
+
   return (
     <div className="border-b border-border shrink-0">
       <div className="flex items-center">
         <button
-          onClick={() => onExpandedChange(!expanded)}
+          onClick={() => setExpanded(!expanded)}
           className="flex-1 px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
         >
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -64,7 +55,7 @@ export function FilterBox({
         </button>
         {activeFilterCount > 0 && (
           <button
-            onClick={onClearFilters}
+            onClick={clearFilters}
             className="px-2 py-2 text-muted-foreground hover:text-foreground transition-colors"
             title="Clear all filters"
           >
@@ -86,8 +77,8 @@ export function FilterBox({
             <label className="text-xs text-muted-foreground mb-1 block">Search</label>
             <input
               type="text"
-              value={searchText}
-              onChange={(e) => onSearchTextChange(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value || null)}
               placeholder="Filter by text..."
               className="w-full px-2 py-1.5 text-xs bg-muted/50 border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
             />
@@ -100,7 +91,7 @@ export function FilterBox({
               {(['all', 'flows', 'events'] as const).map((type) => (
                 <button
                   key={type}
-                  onClick={() => onItemTypeChange(type)}
+                  onClick={() => setItemType(type === 'all' ? null : type)}
                   className={cn(
                     'px-2 py-1 text-xs rounded transition-colors',
                     itemType === type
@@ -120,7 +111,7 @@ export function FilterBox({
               <label className="text-xs text-muted-foreground mb-1 block">Event Type</label>
               <select
                 value={eventType}
-                onChange={(e) => onEventTypeChange(e.target.value)}
+                onChange={(e) => setEventType(e.target.value === 'all' ? null : e.target.value)}
                 className="w-full px-2 py-1.5 text-xs bg-muted/50 border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="all">All Events</option>
@@ -139,12 +130,7 @@ export function FilterBox({
               <label className="text-xs text-muted-foreground mb-1 block">Tags</label>
               <div className="flex flex-wrap gap-1">
                 {uniqueTags.map((tag) => (
-                  <TagBadge
-                    key={tag}
-                    tag={tag}
-                    selected={tags.has(tag)}
-                    onClick={() => onTagToggle(tag)}
-                  />
+                  <TagBadge key={tag} tag={tag} selected={tags.has(tag)} onClick={() => toggleTag(tag)} />
                 ))}
               </div>
             </div>
@@ -153,7 +139,7 @@ export function FilterBox({
           {/* Clear Filters */}
           {activeFilterCount > 0 && (
             <button
-              onClick={onClearFilters}
+              onClick={clearFilters}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Clear filters
@@ -164,4 +150,3 @@ export function FilterBox({
     </div>
   )
 }
-
