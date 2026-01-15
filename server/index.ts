@@ -1,6 +1,5 @@
 import express from 'express'
 import http from 'http'
-import https from 'https'
 import tls from 'tls'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -9,19 +8,17 @@ import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
-import { handleProxyResponse, handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
-import { createStreamParser, isBedrockStream } from './parsers/index.js'
-import { decompressBody } from './utils.js'
+import { handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
 import {
   registerProvider,
   setActiveProvider,
   getActiveProvider,
-  tlsConnect,
   shutdownActiveProvider,
   getAvailableProviders,
   type TLSFingerprint
 } from './tls-provider.js'
 import { utlsProvider } from './tls-provider-utls.js'
+import { createNativeTlsSocket, createProviderTlsSocket, forwardRequest } from './tls-sockets.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -277,13 +274,16 @@ server.on('connect', (req, clientSocket) => {
     const writer = createTlsWriter(tlsClient)
     const provider = getActiveProvider()
 
-    if (provider && provider.isReady()) {
-      // Use TLS provider for fingerprint impersonation
-      forwardWithProvider(host, port, method, reqPath, headers, body, flow, startTime, writer)
-    } else {
-      // Fall back to native https
-      forwardWithNativeTLS(host, port, method, reqPath, headers, body, flow, startTime, writer)
-    }
+    ;(async () => {
+      try {
+        const socket = provider?.isReady()
+          ? await createProviderTlsSocket(host, port)
+          : await createNativeTlsSocket(host, port)
+        forwardRequest(host, port, method, reqPath, headers, body, flow, startTime, writer, socket)
+      } catch (err) {
+        handleProxyError(err as Error, flow, startTime, writer)
+      }
+    })()
 
     // Process any remaining data in buffer
     if (buffer.length > 0) {
@@ -296,286 +296,6 @@ server.on('connect', (req, clientSocket) => {
     tlsClient.destroy()
   })
 })
-
-/**
- * Forward request using the TLS provider (utls)
- */
-async function forwardWithProvider(
-  host: string,
-  port: number,
-  method: string,
-  reqPath: string,
-  headers: Record<string, string>,
-  body: string | undefined,
-  flow: Flow,
-  startTime: number,
-  writer: ReturnType<typeof createTlsWriter>
-) {
-  try {
-    // Connect to target using TLS provider
-    const targetSocket = await tlsConnect({
-      host,
-      port,
-      fingerprint: utlsProvider.getDefaultFingerprint()
-    })
-
-    // Build HTTP request with consistent header ordering
-    let httpRequest = `${method} ${reqPath} HTTP/1.1\r\n`
-
-    // Calculate body bytes first for Content-Length
-    let bodyBytes: Buffer | undefined
-    if (body) {
-      bodyBytes = Buffer.from(body, 'utf-8')
-    }
-
-    // Track which headers we've already written
-    const writtenHeaders = new Set<string>()
-
-    // Write Host first (standard for HTTP/1.1)
-    httpRequest += `Host: ${host}\r\n`
-    writtenHeaders.add('host')
-
-    // Write Content-Length if needed (before other headers, standard practice)
-    if (bodyBytes) {
-      httpRequest += `Content-Length: ${bodyBytes.length}\r\n`
-      writtenHeaders.add('content-length')
-    }
-
-    // Write remaining headers in original order
-    for (const [key, value] of Object.entries(headers)) {
-      const keyLower = key.toLowerCase()
-      if (!writtenHeaders.has(keyLower)) {
-        httpRequest += `${key}: ${value}\r\n`
-        writtenHeaders.add(keyLower)
-      }
-    }
-    httpRequest += '\r\n'
-
-    // Write request
-    targetSocket.write(httpRequest)
-    if (bodyBytes) {
-      targetSocket.write(bodyBytes)
-    }
-
-    // Stream response as it arrives
-    let responseBuffer = Buffer.alloc(0)
-    let headersParsed = false
-    let statusCode = 0
-    let statusMessage = ''
-    let responseHeaders: Record<string, string> = {}
-    let contentEncoding: string | undefined
-    let contentType: string | undefined
-    let bodyChunks: Buffer[] = []
-    let decompressedChunks: Buffer[] = []
-    let streamParser: ReturnType<typeof createStreamParser> | null = null
-    let isStreaming = false
-    let compressionBuffer = Buffer.alloc(0) // For handling incomplete chunks in compressed streams
-
-    const parseHeaders = (headerBytes: Buffer) => {
-      const headerEnd = headerBytes.indexOf('\r\n\r\n')
-      if (headerEnd === -1) return false
-
-      headersParsed = true
-      const headerStr = headerBytes.slice(0, headerEnd).toString('utf-8')
-      const bodyStart = headerBytes.slice(headerEnd + 4)
-
-      // Parse status line
-      const lines = headerStr.split('\r\n')
-      const statusMatch = lines[0].match(/HTTP\/[\d.]+ (\d+) ?(.*)/)
-      statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500
-      statusMessage = statusMatch ? statusMatch[2] || '' : 'Unknown'
-
-      // Parse headers
-      for (let i = 1; i < lines.length; i++) {
-        const colonIdx = lines[i].indexOf(':')
-        if (colonIdx > 0) {
-          const key = lines[i].slice(0, colonIdx).toLowerCase()
-          const value = lines[i].slice(colonIdx + 1).trim()
-          responseHeaders[key] = value
-        }
-      }
-
-      contentType = responseHeaders['content-type']
-      contentEncoding = responseHeaders['content-encoding']
-
-      // Check if this is a streaming response
-      streamParser = createStreamParser(contentType, flow.id, contentEncoding)
-      isStreaming = !!streamParser
-
-      // Initialize response in flow
-      flow.response = {
-        status: statusCode,
-        statusText: statusMessage,
-        headers: responseHeaders,
-        body: undefined
-      }
-
-      if (isStreaming) {
-        flow.isSSE = true
-        store.initFlowEvents(flow.id)
-      }
-
-      // Send headers to client, removing content-encoding since we decompress
-      const headersToSend = { ...responseHeaders }
-      if (contentEncoding && !isStreaming) {
-        delete headersToSend['content-encoding']
-      }
-      writer.writeHead(statusCode, headersToSend)
-      store.saveFlow(flow)
-
-      // Return any remaining body data that came with headers
-      return bodyStart.length > 0 ? bodyStart : null
-    }
-
-    targetSocket.on('data', (chunk: Buffer) => {
-      if (!headersParsed) {
-        responseBuffer = Buffer.concat([responseBuffer, chunk])
-        const initialBody = parseHeaders(responseBuffer)
-
-        if (headersParsed) {
-          // Headers parsed, start streaming body
-          responseBuffer = Buffer.alloc(0)
-
-          // Process any body data that came with headers
-          if (initialBody && initialBody.length > 0) {
-            handleBodyChunk(initialBody)
-          }
-        }
-      } else {
-        handleBodyChunk(chunk)
-      }
-    })
-
-    const handleBodyChunk = (chunk: Buffer) => {
-      bodyChunks.push(chunk)
-
-      // For streaming responses, write immediately to client
-      // This prevents client hangs waiting for first chunk
-      if (isStreaming && streamParser) {
-        writer.write(chunk)
-        return
-      }
-
-      // For non-streaming responses without compression, stream immediately
-      if (!contentEncoding) {
-        writer.write(chunk)
-        return
-      }
-
-      // For compressed responses, accumulate in buffer for decompression
-      // We keep buffering until the socket ends, then decompress all at once
-      compressionBuffer = Buffer.concat([compressionBuffer, chunk])
-    }
-
-    targetSocket.on('end', () => {
-      const duration = Date.now() - startTime
-      const rawBody = Buffer.concat(bodyChunks)
-
-      if (isStreaming && streamParser) {
-        // Decompress if needed for SSE parsing
-        let decompressedBody = rawBody
-        if (contentEncoding) {
-          const decompressed = decompressBody(rawBody, contentEncoding)
-          decompressedBody = Buffer.from(decompressed, 'utf-8')
-        }
-
-        // Parse events from decompressed body
-        for (const event of streamParser.processChunk(decompressedBody)) {
-          store.addEvent(flow.id, event)
-        }
-
-        // Flush remaining events
-        for (const event of streamParser.flush()) {
-          store.addEvent(flow.id, event)
-        }
-
-        flow.response!.body = isBedrockStream(contentType)
-          ? '[Bedrock Event Stream]'
-          : decompressBody(rawBody, contentEncoding)
-
-        writer.write(decompressedBody)
-      } else {
-        // For non-streaming responses
-        // If we buffered compressed content, decompress and write it now
-        if (contentEncoding && compressionBuffer.length > 0) {
-          const decompressedBody = decompressBody(compressionBuffer, contentEncoding)
-          flow.response!.body = decompressedBody
-          writer.write(Buffer.from(decompressedBody, 'utf-8'))
-        } else {
-          // No compression, body already written or empty
-          const decompressedBody = decompressBody(rawBody, contentEncoding)
-          flow.response!.body = decompressedBody
-        }
-      }
-
-      flow.duration = duration
-      store.saveFlow(flow)
-      writer.end()
-    })
-
-    targetSocket.on('error', (err) => {
-      handleProxyError(err, flow, startTime, writer)
-    })
-
-    targetSocket.on('close', () => {
-      // Ensure we finalize if end wasn't called
-      if (headersParsed && !flow.duration) {
-        const duration = Date.now() - startTime
-        const rawBody = Buffer.concat(bodyChunks)
-        flow.response!.body = decompressBody(rawBody, contentEncoding)
-        flow.duration = duration
-        store.saveFlow(flow)
-        writer.end()
-      }
-    })
-
-  } catch (err) {
-    handleProxyError(err as Error, flow, startTime, writer)
-  }
-}
-
-/**
- * Forward request using native Node.js TLS (no fingerprint spoofing)
- */
-function forwardWithNativeTLS(
-  host: string,
-  port: number,
-  method: string,
-  reqPath: string,
-  headers: Record<string, string>,
-  body: string | undefined,
-  flow: Flow,
-  startTime: number,
-  writer: ReturnType<typeof createTlsWriter>
-) {
-  const reqOptions: https.RequestOptions = {
-    hostname: host,
-    port,
-    path: reqPath,
-    method,
-    headers: { ...headers, host },
-    rejectUnauthorized: false
-  }
-
-  const proxyReq = https.request(reqOptions, (proxyRes) => {
-    handleProxyResponse(proxyRes, {
-      flow,
-      startTime,
-      writer,
-      storeRawHttp: true,
-      verbose: false
-    })
-  })
-
-  proxyReq.on('error', (err) => {
-    handleProxyError(err, flow, startTime, writer)
-  })
-
-  if (body) {
-    proxyReq.write(body)
-  }
-  proxyReq.end()
-}
 
 // Start server
 async function start() {
