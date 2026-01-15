@@ -74,7 +74,7 @@ Examples:
 const PORT = parseInt(cliArgs.port || process.env.PORT || '9090', 10)
 
 // TLS fingerprinting configuration
-const TLS_PROVIDER = cliArgs.tlsProvider || process.env.TLS_PROVIDER || 'utls' // 'utls' or 'native'
+const TLS_PROVIDER = cliArgs.tlsProvider || process.env.TLS_PROVIDER || 'native' // 'utls' or 'native'
 const TLS_FINGERPRINT = (cliArgs.tlsFingerprint || process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint
 
 // Initialize CA
