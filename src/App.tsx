@@ -23,7 +23,6 @@ function AppContent() {
     selectedFlow,
     selectedFlowEvents,
     selectedFlowEnhancer,
-    selectedFlowTags,
     requestViewMode,
     responseViewMode,
     eventRefs,
@@ -95,7 +94,6 @@ function AppContent() {
                 <RequestSection
                   flow={selectedFlow}
                   enhancer={selectedFlowEnhancer}
-                  tags={selectedFlowTags}
                   viewMode={requestViewMode}
                   onViewModeChange={setRequestViewMode}
                 />

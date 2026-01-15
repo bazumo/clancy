@@ -262,9 +262,7 @@ export function ToolsView({ tools, defaultExpanded = true }: ToolsViewProps) {
                     </span>
                   )
                 })()}
-                <span className="text-xs text-muted-foreground font-mono ml-auto">
-                  {getToolType(activeTool)}
-                </span>
+                
               </div>
               
               <ToolDetails tool={activeTool} />

@@ -23,16 +23,6 @@ export function ContentView({ content, defaultExpanded = true }: ContentViewProp
           <span className="text-xs text-muted-foreground">
             {content.length} block{content.length !== 1 ? 's' : ''}
           </span>
-          {hasThinking && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
-              thinking
-            </span>
-          )}
-          {hasToolUse && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
-              tool_use
-            </span>
-          )}
         </>
       }
     >

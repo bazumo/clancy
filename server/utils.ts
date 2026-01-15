@@ -1,4 +1,5 @@
 import zlib from 'zlib'
+import { decompress as zstdDecompress } from 'fzstd'
 
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 9)
@@ -16,6 +17,8 @@ export function decompressBody(body: Buffer, encoding: string | undefined): stri
       return zlib.inflateSync(body).toString('utf-8')
     } else if (encoding === 'br') {
       return zlib.brotliDecompressSync(body).toString('utf-8')
+    } else if (encoding === 'zstd') {
+      return Buffer.from(zstdDecompress(new Uint8Array(body))).toString('utf-8')
     }
   } catch (err) {
     // If decompression fails, return raw string

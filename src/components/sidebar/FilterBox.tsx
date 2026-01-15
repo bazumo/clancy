@@ -31,7 +31,7 @@ export function FilterBox({ uniqueEventTypes, uniqueTags }: FilterBoxProps) {
       <div className="flex items-center">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex-1 px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+          className="flex-1 px-3 h-9 flex items-center gap-2 hover:bg-muted/50 transition-colors"
         >
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Filter

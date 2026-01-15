@@ -187,7 +187,7 @@ export function LogEventItem({
         </span>
         
         {/* Index */}
-        <span className="text-muted-foreground/40 shrink-0">
+        <span className="text-muted-foreground/40 shrink-0 w-[4ch] text-right tabular-nums">
           #{index}
         </span>
         

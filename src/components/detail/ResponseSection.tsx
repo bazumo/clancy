@@ -91,7 +91,7 @@ export function ResponseSection({
 
   return (
     <div className="min-w-0">
-      <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-y border-border h-11">
+      <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 z-10 border-b border-border h-11">
         <div className="px-4 h-full flex items-center gap-3 min-w-0 overflow-hidden">
           <span className="text-xs font-medium uppercase tracking-wider text-amber-400 shrink-0">
             Response
@@ -99,15 +99,7 @@ export function ResponseSection({
           {flow.response ? (
             <>
               <StatusBadge status={flow.response.status} className="shrink-0" />
-              <span className="text-xs text-muted-foreground shrink-0">
-                {flow.response.statusText}
-              </span>
-              {flow.isSSE && <EventCountBadge count={events.length} suffix="events" />}
-              {flow.duration && (
-                <span className="text-xs text-muted-foreground font-mono shrink-0">
-                  {flow.duration}ms
-                </span>
-              )}
+           
               <div className="flex-1" />
               {modes.length > 1 && (
                 <ViewModeToggle value={viewMode} onChange={onViewModeChange} modes={modes} />

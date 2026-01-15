@@ -39,7 +39,7 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
         onClick={() => setExpanded(!expanded)}
         className="sticky top-11 z-[9] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 w-full text-left"
       >
-        <div className="px-4 h-11 flex items-center gap-2 border-b border-border">
+        <div className="px-4 h-11 flex items-center gap-2">
           <svg
             className={cn(
               'w-3.5 h-3.5 transition-transform shrink-0 text-muted-foreground/60',
@@ -59,22 +59,10 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
             Messages
           </span>
           
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {messages.length}
-          </span>
-          
-          {/* Cache indicator */}
-          {hasCaching && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-              </svg>
-              {lastCacheIndex + 1} cached
-            </span>
-          )}
-          
+     
+ 
           {/* Role breakdown */}
-          <div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 ml-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-rose-400" />
               {messages.filter(m => m.role === 'user').length} user
@@ -89,7 +77,7 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
       
       {/* Chat messages */}
       {expanded && (
-        <div className="py-3 px-4 space-y-3 bg-gradient-to-b from-muted/10 to-transparent">
+        <div className="py-3 px-4 space-y-3 bg-gradient-to-b from-muted/10 to-transparent border-t border-border">
           {messages.map((message, i) => (
             <ChatMessage 
               key={i} 

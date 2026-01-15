@@ -40,16 +40,7 @@ export function GeneralView({ request, defaultExpanded = true }: GeneralViewProp
           <span className="text-xs font-mono text-muted-foreground">
             {request.model}
           </span>
-          {request.stream && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
-              streaming
-            </span>
-          )}
-          {request.thinking?.type === 'enabled' && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
-              thinking
-            </span>
-          )}
+
         </>
       }
     >

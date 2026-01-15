@@ -43,12 +43,6 @@ export function SystemPromptView({ system, defaultExpanded = true }: SystemPromp
               {system.length} block{system.length !== 1 ? 's' : ''}
             </span>
           )}
-          {hasCache && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 flex items-center gap-1 font-mono">
-              <CacheIcon />
-              cache_control: {cacheType}
-            </span>
-          )}
         </>
       }
     >

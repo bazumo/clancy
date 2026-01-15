@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export function Header({ connected, flowCount, eventCount, onClear }: HeaderProps) {
   return (
-    <header className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0">
+    <header className="h-12 border-b-4 border-border flex items-center justify-between px-4 shrink-0">
       <div className="flex items-center gap-3">
         <h1 className="text-sm font-medium tracking-tight">Claudeoscope</h1>
         <div

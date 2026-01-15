@@ -131,7 +131,7 @@ export function CollapsibleSection({
           hoverEffect && 'hover:bg-muted/50 transition-colors'
         )}
       >
-        <div className="px-4 h-11 flex items-center gap-2 border-b border-border">
+        <div className="px-4 h-11 flex items-center gap-2">
           <svg
             className={cn(
               'w-3.5 h-3.5 transition-transform shrink-0 text-muted-foreground/60',
@@ -161,7 +161,7 @@ export function CollapsibleSection({
         </div>
       </button>
       {expanded && (
-        <div className={contentClassName}>
+        <div className={cn('border-t border-border', contentClassName)}>
           {children}
         </div>
       )}

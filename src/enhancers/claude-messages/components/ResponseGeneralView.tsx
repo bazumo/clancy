@@ -60,11 +60,6 @@ export function ResponseGeneralView({ response, defaultExpanded = true }: Respon
           <span className="text-xs font-mono text-muted-foreground">
             {response.model}
           </span>
-          {response.stop_reason && (
-            <span className={cn('text-xs px-1.5 py-0.5 rounded', stopReasonColor)}>
-              {response.stop_reason}
-            </span>
-          )}
         </>
       }
     >
