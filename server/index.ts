@@ -9,6 +9,8 @@ import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
 import { handleProxyResponse, handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
+import { createStreamParser, isBedrockStream } from './parsers/index.js'
+import { decompressBody } from './utils.js'
 import {
   registerProvider,
   setActiveProvider,
@@ -21,11 +23,59 @@ import {
 import { utlsProvider } from './tls-provider-utls.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PORT = parseInt(process.env.PORT || '9090', 10)
+
+// Parse command-line arguments
+function parseArgs() {
+  const args = process.argv.slice(2)
+  const options: { tlsProvider?: string; tlsFingerprint?: string; port?: string; help?: boolean } = {}
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    if (arg === '--help' || arg === '-h') {
+      options.help = true
+    } else if (arg === '--tls-provider' || arg === '-t') {
+      options.tlsProvider = args[++i]
+    } else if (arg === '--tls-fingerprint' || arg === '-f') {
+      options.tlsFingerprint = args[++i]
+    } else if (arg === '--port' || arg === '-p') {
+      options.port = args[++i]
+    }
+  }
+
+  return options
+}
+
+const cliArgs = parseArgs()
+
+if (cliArgs.help) {
+  console.log(`
+Claudeoscope Proxy Server
+
+Usage: npm start [options]
+
+Options:
+  -t, --tls-provider <provider>     TLS provider to use: 'utls' (Go fingerprinting) or 'native' (Node.js TLS)
+                                    Default: utls
+  -f, --tls-fingerprint <fp>        TLS fingerprint to use with utls provider
+                                    Supported: chrome120, chrome102, firefox120, safari16, electron, etc.
+                                    Default: electron
+  -p, --port <port>                 Port to listen on (default: 9090)
+  -h, --help                        Show this help message
+
+Examples:
+  npm start
+  npm start --tls-provider native
+  npm start --tls-provider utls --tls-fingerprint chrome120
+  npm start -t native -p 8080
+`)
+  process.exit(0)
+}
+
+const PORT = parseInt(cliArgs.port || process.env.PORT || '9090', 10)
 
 // TLS fingerprinting configuration
-const TLS_PROVIDER = process.env.TLS_PROVIDER || 'utls' // 'utls' or 'native'
-const TLS_FINGERPRINT = (process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint
+const TLS_PROVIDER = cliArgs.tlsProvider || process.env.TLS_PROVIDER || 'utls' // 'utls' or 'native'
+const TLS_FINGERPRINT = (cliArgs.tlsFingerprint || process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint
 
 // Initialize CA
 loadOrCreateCA()
@@ -304,113 +354,216 @@ async function forwardWithProvider(
       fingerprint: utlsProvider.getDefaultFingerprint()
     })
 
-    // Build HTTP request
+    // Build HTTP request with consistent header ordering
     let httpRequest = `${method} ${reqPath} HTTP/1.1\r\n`
+
+    // Calculate body bytes first for Content-Length
+    let bodyBytes: Buffer | undefined
+    if (body) {
+      bodyBytes = Buffer.from(body, 'utf-8')
+    }
+
+    // Track which headers we've already written
+    const writtenHeaders = new Set<string>()
+
+    // Write Host first (standard for HTTP/1.1)
     httpRequest += `Host: ${host}\r\n`
-    
+    writtenHeaders.add('host')
+
+    // Write Content-Length if needed (before other headers, standard practice)
+    if (bodyBytes) {
+      httpRequest += `Content-Length: ${bodyBytes.length}\r\n`
+      writtenHeaders.add('content-length')
+    }
+
+    // Write remaining headers in original order
     for (const [key, value] of Object.entries(headers)) {
-      if (key.toLowerCase() !== 'host') {
+      const keyLower = key.toLowerCase()
+      if (!writtenHeaders.has(keyLower)) {
         httpRequest += `${key}: ${value}\r\n`
+        writtenHeaders.add(keyLower)
       }
     }
     httpRequest += '\r\n'
 
     // Write request
     targetSocket.write(httpRequest)
-    if (body) {
-      targetSocket.write(body)
+    if (bodyBytes) {
+      targetSocket.write(bodyBytes)
     }
 
-    // Read and forward response manually
+    // Stream response as it arrives
     let responseBuffer = Buffer.alloc(0)
     let headersParsed = false
     let statusCode = 0
     let statusMessage = ''
     let responseHeaders: Record<string, string> = {}
-    let contentLength = -1
-    let isChunked = false
-    let bodyBuffer = Buffer.alloc(0)
-    
-    const processResponse = () => {
-      // Parse headers if not done yet
-      if (!headersParsed) {
-        const headerEnd = responseBuffer.indexOf('\r\n\r\n')
-        if (headerEnd === -1) return // Need more data
-        
-        headersParsed = true
-        const headerStr = responseBuffer.slice(0, headerEnd).toString('utf-8')
-        bodyBuffer = responseBuffer.slice(headerEnd + 4)
-        responseBuffer = Buffer.alloc(0)
-        
-        // Parse status line
-        const lines = headerStr.split('\r\n')
-        const statusMatch = lines[0].match(/HTTP\/[\d.]+ (\d+) ?(.*)/)
-        statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500
-        statusMessage = statusMatch ? statusMatch[2] || '' : 'Unknown'
-        
-        // Parse headers
-        for (let i = 1; i < lines.length; i++) {
-          const colonIdx = lines[i].indexOf(':')
-          if (colonIdx > 0) {
-            const key = lines[i].slice(0, colonIdx).toLowerCase()
-            const value = lines[i].slice(colonIdx + 1).trim()
-            responseHeaders[key] = value
-          }
+    let contentEncoding: string | undefined
+    let contentType: string | undefined
+    let bodyChunks: Buffer[] = []
+    let decompressedChunks: Buffer[] = []
+    let streamParser: ReturnType<typeof createStreamParser> | null = null
+    let isStreaming = false
+    let compressionBuffer = Buffer.alloc(0) // For handling incomplete chunks in compressed streams
+
+    const parseHeaders = (headerBytes: Buffer) => {
+      const headerEnd = headerBytes.indexOf('\r\n\r\n')
+      if (headerEnd === -1) return false
+
+      headersParsed = true
+      const headerStr = headerBytes.slice(0, headerEnd).toString('utf-8')
+      const bodyStart = headerBytes.slice(headerEnd + 4)
+
+      // Parse status line
+      const lines = headerStr.split('\r\n')
+      const statusMatch = lines[0].match(/HTTP\/[\d.]+ (\d+) ?(.*)/)
+      statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500
+      statusMessage = statusMatch ? statusMatch[2] || '' : 'Unknown'
+
+      // Parse headers
+      for (let i = 1; i < lines.length; i++) {
+        const colonIdx = lines[i].indexOf(':')
+        if (colonIdx > 0) {
+          const key = lines[i].slice(0, colonIdx).toLowerCase()
+          const value = lines[i].slice(colonIdx + 1).trim()
+          responseHeaders[key] = value
         }
-        
-        contentLength = parseInt(responseHeaders['content-length'] || '-1', 10)
-        isChunked = responseHeaders['transfer-encoding']?.toLowerCase() === 'chunked'
       }
-    }
-    
-    targetSocket.on('data', (chunk: Buffer) => {
-      if (!headersParsed) {
-        responseBuffer = Buffer.concat([responseBuffer, chunk])
-        processResponse()
-      } else {
-        bodyBuffer = Buffer.concat([bodyBuffer, chunk])
-      }
-    })
-    
-    targetSocket.on('end', () => {
-      // Finalize response
+
+      contentType = responseHeaders['content-type']
+      contentEncoding = responseHeaders['content-encoding']
+
+      // Check if this is a streaming response
+      streamParser = createStreamParser(contentType, flow.id, contentEncoding)
+      isStreaming = !!streamParser
+
+      // Initialize response in flow
       flow.response = {
         status: statusCode,
         statusText: statusMessage,
         headers: responseHeaders,
-        body: bodyBuffer.toString('utf-8') || undefined
+        body: undefined
       }
-      flow.duration = Date.now() - startTime
+
+      if (isStreaming) {
+        flow.isSSE = true
+        store.initFlowEvents(flow.id)
+      }
+
+      // Send headers to client, removing content-encoding since we decompress
+      const headersToSend = { ...responseHeaders }
+      if (contentEncoding && !isStreaming) {
+        delete headersToSend['content-encoding']
+      }
+      writer.writeHead(statusCode, headersToSend)
       store.saveFlow(flow)
-      
-      // Send response to client
-      writer.writeHead(statusCode, responseHeaders)
-      writer.write(bodyBuffer)
+
+      // Return any remaining body data that came with headers
+      return bodyStart.length > 0 ? bodyStart : null
+    }
+
+    targetSocket.on('data', (chunk: Buffer) => {
+      if (!headersParsed) {
+        responseBuffer = Buffer.concat([responseBuffer, chunk])
+        const initialBody = parseHeaders(responseBuffer)
+
+        if (headersParsed) {
+          // Headers parsed, start streaming body
+          responseBuffer = Buffer.alloc(0)
+
+          // Process any body data that came with headers
+          if (initialBody && initialBody.length > 0) {
+            handleBodyChunk(initialBody)
+          }
+        }
+      } else {
+        handleBodyChunk(chunk)
+      }
+    })
+
+    const handleBodyChunk = (chunk: Buffer) => {
+      bodyChunks.push(chunk)
+
+      // For streaming responses, write immediately to client
+      // This prevents client hangs waiting for first chunk
+      if (isStreaming && streamParser) {
+        writer.write(chunk)
+        return
+      }
+
+      // For non-streaming responses without compression, stream immediately
+      if (!contentEncoding) {
+        writer.write(chunk)
+        return
+      }
+
+      // For compressed responses, accumulate in buffer for decompression
+      // We keep buffering until the socket ends, then decompress all at once
+      compressionBuffer = Buffer.concat([compressionBuffer, chunk])
+    }
+
+    targetSocket.on('end', () => {
+      const duration = Date.now() - startTime
+      const rawBody = Buffer.concat(bodyChunks)
+
+      if (isStreaming && streamParser) {
+        // Decompress if needed for SSE parsing
+        let decompressedBody = rawBody
+        if (contentEncoding) {
+          const decompressed = decompressBody(rawBody, contentEncoding)
+          decompressedBody = Buffer.from(decompressed, 'utf-8')
+        }
+
+        // Parse events from decompressed body
+        for (const event of streamParser.processChunk(decompressedBody)) {
+          store.addEvent(flow.id, event)
+        }
+
+        // Flush remaining events
+        for (const event of streamParser.flush()) {
+          store.addEvent(flow.id, event)
+        }
+
+        flow.response!.body = isBedrockStream(contentType)
+          ? '[Bedrock Event Stream]'
+          : decompressBody(rawBody, contentEncoding)
+
+        writer.write(decompressedBody)
+      } else {
+        // For non-streaming responses
+        // If we buffered compressed content, decompress and write it now
+        if (contentEncoding && compressionBuffer.length > 0) {
+          const decompressedBody = decompressBody(compressionBuffer, contentEncoding)
+          flow.response!.body = decompressedBody
+          writer.write(Buffer.from(decompressedBody, 'utf-8'))
+        } else {
+          // No compression, body already written or empty
+          const decompressedBody = decompressBody(rawBody, contentEncoding)
+          flow.response!.body = decompressedBody
+        }
+      }
+
+      flow.duration = duration
+      store.saveFlow(flow)
       writer.end()
     })
-    
+
     targetSocket.on('error', (err) => {
       handleProxyError(err, flow, startTime, writer)
     })
-    
+
     targetSocket.on('close', () => {
-      // If we have headers but end wasn't called, finalize now
-      if (headersParsed && !flow.response) {
-        flow.response = {
-          status: statusCode,
-          statusText: statusMessage,
-          headers: responseHeaders,
-          body: bodyBuffer.toString('utf-8') || undefined
-        }
-        flow.duration = Date.now() - startTime
+      // Ensure we finalize if end wasn't called
+      if (headersParsed && !flow.duration) {
+        const duration = Date.now() - startTime
+        const rawBody = Buffer.concat(bodyChunks)
+        flow.response!.body = decompressBody(rawBody, contentEncoding)
+        flow.duration = duration
         store.saveFlow(flow)
-        
-        writer.writeHead(statusCode, responseHeaders)
-        writer.write(bodyBuffer)
         writer.end()
       }
     })
-    
+
   } catch (err) {
     handleProxyError(err as Error, flow, startTime, writer)
   }
@@ -466,6 +619,7 @@ async function start() {
   server.listen(PORT, () => {
     console.log(`Claudeoscope proxy running on http://localhost:${PORT}`)
     console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
+    console.log(`TLS Provider: ${TLS_PROVIDER === 'native' ? 'Node.js (native)' : `uTLS (Go) - ${TLS_FINGERPRINT}`}`)
   })
 }
 

@@ -151,7 +151,7 @@ func handleConnection(clientConn net.Conn) {
 		InsecureSkipVerify: true,
 	}
 
-	// Use HelloCustom with our own spec that forces HTTP/1.1
+	// Use HelloCustom with our spec
 	tlsConn := tls.UClient(tcpConn, tlsConfig, tls.HelloCustom)
 
 	// Get the base spec from the original hello ID
@@ -162,17 +162,8 @@ func handleConnection(clientConn net.Conn) {
 		return
 	}
 
-	// Modify ALPN to HTTP/1.1 only (to avoid HTTP/2 complexity)
-	for i, ext := range baseSpec.Extensions {
-		if _, ok := ext.(*tls.ALPNExtension); ok {
-			baseSpec.Extensions[i] = &tls.ALPNExtension{
-				AlpnProtocols: []string{"http/1.1"},
-			}
-			break
-		}
-	}
-
-	// Apply the modified spec
+	// Apply the spec as-is to allow natural ALPN negotiation
+	// This lets the server choose HTTP/2 or HTTP/1.1, just like native clients
 	if err := tlsConn.ApplyPreset(&baseSpec); err != nil {
 		tcpConn.Close()
 		sendErrorLine(clientConn, "Failed to apply TLS spec: "+err.Error())
