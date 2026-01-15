@@ -8,13 +8,29 @@ import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
-import { handleProxyResponse, handleProxyError, createExpressWriter, createTlsWriter } from './proxy-handler.js'
+import { handleProxyResponse, handleProxyError, handleCycleTLSResponse, createExpressWriter, createTlsWriter } from './proxy-handler.js'
+import { getCycleClient, cycleFetch, setTLSProfile, getTLSProfile, shutdownCycleClient, TLS_PROFILES, type TLSProfile } from './cycle-client.js'
+
+// TLS fingerprinting configuration
+const USE_CYCLETLS = process.env.USE_CYCLETLS !== 'false' // Enabled by default
+const TLS_PROFILE = (process.env.TLS_PROFILE || 'electron') as TLSProfile
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = parseInt(process.env.PORT || '9090', 10)
 
 // Initialize CA
 loadOrCreateCA()
+
+// Initialize TLS profile
+if (USE_CYCLETLS) {
+  setTLSProfile(TLS_PROFILE)
+  // Pre-initialize CycleTLS client
+  getCycleClient().then(() => {
+    console.log(`[CycleTLS] Ready with profile: ${getTLSProfile()}`)
+  }).catch(err => {
+    console.error('[CycleTLS] Failed to initialize:', err.message)
+  })
+}
 
 const app = express()
 const server = http.createServer(app)
@@ -51,6 +67,25 @@ app.get('/api/flows/:id/raw', (req, res) => {
 app.get('/api/debug/raw-flows', (_req, res) => {
   const flowIds = store.getRawHttpFlowIds()
   res.json({ count: flowIds.length, flowIds })
+})
+
+// TLS fingerprinting configuration endpoints
+app.get('/api/tls/config', (_req, res) => {
+  res.json({
+    enabled: USE_CYCLETLS,
+    profile: getTLSProfile(),
+    availableProfiles: Object.keys(TLS_PROFILES)
+  })
+})
+
+app.post('/api/tls/profile/:profile', express.json(), (req, res) => {
+  const profile = req.params.profile as TLSProfile
+  if (!TLS_PROFILES[profile]) {
+    res.status(400).json({ error: `Invalid profile. Available: ${Object.keys(TLS_PROFILES).join(', ')}` })
+    return
+  }
+  setTLSProfile(profile)
+  res.json({ success: true, profile })
 })
 
 // Handle HTTP proxy requests
@@ -202,35 +237,60 @@ server.on('connect', (req, clientSocket, head) => {
     requestCount++
 
     // Forward request to actual server
-    const reqOptions: https.RequestOptions = {
-      hostname: host,
-      port,
-      path,
-      method,
-      headers: { ...headers, host },
-      rejectUnauthorized: false
-    }
-
     const writer = createTlsWriter(tlsClient)
 
-    const proxyReq = https.request(reqOptions, (proxyRes) => {
-      handleProxyResponse(proxyRes, {
-        flow,
-        startTime,
-        writer,
-        storeRawHttp: true,
-        verbose: true
+    if (USE_CYCLETLS) {
+      // Use CycleTLS for TLS fingerprint impersonation
+      // Filter out content-length as CycleTLS will calculate it from the body
+      const cycleHeaders = { ...headers, host }
+      delete cycleHeaders['content-length']
+      delete cycleHeaders['transfer-encoding']
+      
+      cycleFetch(url, {
+        method,
+        headers: cycleHeaders,
+        body: body || undefined
+      }).then((cycleRes) => {
+        handleCycleTLSResponse(cycleRes, {
+          flow,
+          startTime,
+          writer,
+          storeRawHttp: true,
+          verbose: true
+        })
+      }).catch((err) => {
+        handleProxyError(err, flow, startTime, writer)
       })
-    })
+    } else {
+      // Fall back to native https (no fingerprint impersonation)
+      const reqOptions: https.RequestOptions = {
+        hostname: host,
+        port,
+        path,
+        method,
+        headers: { ...headers, host },
+        rejectUnauthorized: false
+      }
 
-    proxyReq.on('error', (err) => {
-      handleProxyError(err, flow, startTime, writer)
-    })
+      const proxyReq = https.request(reqOptions, (proxyRes) => {
+        handleProxyResponse(proxyRes, {
+          flow,
+          startTime,
+          writer,
+          storeRawHttp: true,
+          verbose: true
+        })
+      })
 
-    if (body) {
-      proxyReq.write(body)
+      proxyReq.on('error', (err) => {
+        handleProxyError(err, flow, startTime, writer)
+      })
+
+      if (body) {
+        proxyReq.write(body)
+      }
+      proxyReq.end()
     }
-    proxyReq.end()
 
     // Process any remaining data in buffer
     if (buffer.length > 0) {
@@ -247,4 +307,26 @@ server.on('connect', (req, clientSocket, head) => {
 server.listen(PORT, () => {
   console.log(`Claudeoscope proxy running on http://localhost:${PORT}`)
   console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
+  if (USE_CYCLETLS) {
+    console.log(`TLS fingerprint impersonation: enabled (profile: ${TLS_PROFILE})`)
+  } else {
+    console.log('TLS fingerprint impersonation: disabled')
+  }
+})
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\nShutting down...')
+  if (USE_CYCLETLS) {
+    await shutdownCycleClient()
+  }
+  process.exit(0)
+})
+
+process.on('SIGTERM', async () => {
+  console.log('\nShutting down...')
+  if (USE_CYCLETLS) {
+    await shutdownCycleClient()
+  }
+  process.exit(0)
 })

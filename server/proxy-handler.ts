@@ -3,6 +3,7 @@ import type { Flow } from '../shared/types.js'
 import { decompressBody } from './utils.js'
 import { createStreamParser, isBedrockStream, StreamParser } from './parsers/index.js'
 import * as store from './flow-store.js'
+import type { CycleTLSResponse } from './cycle-client.js'
 
 /**
  * Interface for writing response data back to the client
@@ -185,6 +186,173 @@ export function handleProxyError(
   writer.writeHead(502, { 'content-length': err.message.length })
   writer.write(Buffer.from(err.message))
   writer.end()
+}
+
+/**
+ * Options for handling a CycleTLS response
+ */
+export interface CycleTLSResponseOptions {
+  flow: Flow
+  startTime: number
+  writer: ResponseWriter
+  /** If provided, raw HTTP response will be stored */
+  storeRawHttp?: boolean
+  /** Enable verbose logging */
+  verbose?: boolean
+}
+
+/**
+ * Handle a CycleTLS response (non-streaming, complete response)
+ * CycleTLS returns the complete response body at once, so we handle it differently
+ */
+export function handleCycleTLSResponse(
+  cycleRes: CycleTLSResponse,
+  options: CycleTLSResponseOptions
+): void {
+  const { flow, startTime, writer, storeRawHttp, verbose } = options
+  const id = flow.id
+
+  const statusCode = cycleRes.status
+  // CycleTLS returns headers as arrays, normalize them
+  const rawHeaders = cycleRes.headers as Record<string, string[]>
+  const headers: Record<string, string | string[] | undefined> = {}
+  for (const [key, value] of Object.entries(rawHeaders)) {
+    // Convert single-element arrays to strings for consistency
+    headers[key.toLowerCase()] = Array.isArray(value) && value.length === 1 ? value[0] : value
+  }
+
+  // Parse content type and encoding first - we need this to properly handle the body
+  const contentType = headers['content-type']
+  const contentTypeStr = Array.isArray(contentType) ? contentType[0] : contentType
+  const contentEncoding = headers['content-encoding'] as string | undefined
+
+  // Extract raw bytes from CycleTLS response
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cycleResAny = cycleRes as any
+  let rawBytes: Buffer
+  
+  if (typeof cycleResAny.body === 'string' && cycleResAny.body.length > 0) {
+    // Body is a string - convert to buffer (might be binary data as latin1)
+    rawBytes = Buffer.from(cycleResAny.body, 'latin1')
+  } else if (cycleResAny.data !== undefined) {
+    // Handle different data types from CycleTLS
+    if (Buffer.isBuffer(cycleResAny.data)) {
+      rawBytes = cycleResAny.data
+    } else if (typeof cycleResAny.data === 'object' && cycleResAny.data !== null) {
+      // Check if it's a Buffer-like object {type: 'Buffer', data: [...]}
+      if (cycleResAny.data.type === 'Buffer' && Array.isArray(cycleResAny.data.data)) {
+        rawBytes = Buffer.from(cycleResAny.data.data)
+      } else {
+        // Regular JSON object - CycleTLS already parsed it, stringify back
+        rawBytes = Buffer.from(JSON.stringify(cycleResAny.data), 'utf-8')
+      }
+    } else {
+      rawBytes = Buffer.from(String(cycleResAny.data ?? ''), 'utf-8')
+    }
+  } else {
+    rawBytes = Buffer.alloc(0)
+  }
+
+  // Decompress if content-encoding is set
+  // We decompress here because we want to:
+  // 1. Store decompressed body in flow for display
+  // 2. Send decompressed body to client (simpler than re-compressing)
+  let decodedBody: string
+  if (contentEncoding) {
+    decodedBody = decompressBody(rawBytes, contentEncoding)
+    if (verbose) {
+      console.log(`[CycleTLS] Decompressed ${contentEncoding}: ${rawBytes.length} -> ${decodedBody.length} bytes`)
+    }
+  } else {
+    decodedBody = rawBytes.toString('utf-8')
+  }
+
+  if (verbose) {
+    console.log(`[CycleTLS] Response: ${statusCode} ${contentTypeStr || 'unknown'} (${decodedBody.length} bytes)`)
+  }
+
+  // Check if this was supposed to be a streaming response
+  // Note: we pass undefined for contentEncoding since we've already decompressed
+  const parser = createStreamParser(contentTypeStr, id, undefined)
+
+  // Prepare the body buffer for sending (already decompressed)
+  const bodyBuffer = Buffer.from(decodedBody, 'utf-8')
+
+  // Build response headers - remove content-encoding since we've decompressed
+  const responseHeaders: Record<string, string | string[] | undefined> = { ...headers }
+  delete responseHeaders['content-encoding']
+  delete responseHeaders['transfer-encoding']
+  responseHeaders['content-length'] = String(bodyBuffer.length)
+
+  if (parser) {
+    // This is a streaming response type, but CycleTLS doesn't support streaming
+    // We'll parse the complete body as if it were received all at once
+    flow.isSSE = true
+    if (storeRawHttp) {
+      flow.hasRawHttp = false
+      store.deleteRawHttp(id)
+    }
+    store.initFlowEvents(id)
+
+    // Parse all events from the complete body
+    for (const event of parser.processChunk(bodyBuffer)) {
+      if (verbose) {
+        console.log(`[CycleTLS] Parsed event: ${event.eventId}`)
+      }
+      store.addEvent(id, event)
+    }
+
+    // Flush remaining events
+    for (const event of parser.flush()) {
+      if (verbose) {
+        console.log(`[CycleTLS] Flushing event: ${event.eventId}`)
+      }
+      store.addEvent(id, event)
+    }
+
+    if (verbose) {
+      const totalEvents = store.getEvents(id).length
+      console.log(`[CycleTLS] Parsed ${totalEvents} total events from response`)
+    }
+
+    flow.response = {
+      status: statusCode,
+      statusText: http.STATUS_CODES[statusCode] || '',
+      headers: responseHeaders,
+      body: isBedrockStream(contentTypeStr) ? '[Bedrock Event Stream]' : decodedBody
+    }
+    flow.duration = Date.now() - startTime
+    store.saveFlow(flow)
+
+    writer.writeHead(statusCode, responseHeaders)
+    writer.write(bodyBuffer)
+    writer.end()
+  } else {
+    // Non-streaming response - straightforward handling
+    flow.response = {
+      status: statusCode,
+      statusText: http.STATUS_CODES[statusCode] || '',
+      headers: responseHeaders,
+      body: decodedBody || undefined
+    }
+    flow.duration = Date.now() - startTime
+    store.saveFlow(flow)
+
+    // Store raw HTTP if requested
+    if (storeRawHttp) {
+      const header = buildResponseHeader(
+        statusCode,
+        http.STATUS_CODES[statusCode] || '',
+        responseHeaders as Record<string, string | string[] | number | undefined>,
+        bodyBuffer.length
+      )
+      store.setRawHttpResponse(id, header + decodedBody)
+    }
+
+    writer.writeHead(statusCode, responseHeaders)
+    writer.write(bodyBuffer)
+    writer.end()
+  }
 }
 
 // ============ Writer Factories ============
