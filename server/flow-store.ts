@@ -60,6 +60,13 @@ export function getFlow(id: string): Flow | undefined {
   return flows.get(id)
 }
 
+/**
+ * Get all flows
+ */
+export function getAllFlows(): Flow[] {
+  return Array.from(flows.values())
+}
+
 // ============ Event Management ============
 
 /**
@@ -124,6 +131,18 @@ export function deleteRawHttp(flowId: string): void {
  */
 export function getRawHttpFlowIds(): string[] {
   return Array.from(rawHttp.keys())
+}
+
+// ============ Clear All ============
+
+/**
+ * Clear all stored data (flows, events, raw HTTP) and notify clients
+ */
+export function clearAll(): void {
+  flows.clear()
+  events.clear()
+  rawHttp.clear()
+  broadcast(JSON.stringify({ type: 'clear' }))
 }
 
 // ============ Stats ============

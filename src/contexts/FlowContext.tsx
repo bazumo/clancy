@@ -11,7 +11,7 @@ interface FlowContextValue {
   events: Map<string, SSEEvent[]>
   totalEvents: number
   // Actions
-  clearAll: () => void
+  clearAll: () => Promise<void>
   getFlowEvents: (flowId: string) => SSEEvent[]
 }
 

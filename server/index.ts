@@ -99,6 +99,35 @@ app.get('/api/debug/raw-flows', (_req, res) => {
   res.json({ count: flowIds.length, flowIds })
 })
 
+// Get all flows
+app.get('/api/flows', (_req, res) => {
+  const flows = store.getAllFlows()
+  res.json({ flows, count: flows.length })
+})
+
+// Get a specific flow by ID
+app.get('/api/flows/:id', (req, res) => {
+  const flow = store.getFlow(req.params.id)
+  if (!flow) {
+    res.status(404).json({ error: 'Flow not found' })
+    return
+  }
+  res.json(flow)
+})
+
+// Get events for a specific flow
+app.get('/api/flows/:id/events', (req, res) => {
+  const events = store.getEvents(req.params.id)
+  res.json({ flowId: req.params.id, events, count: events.length })
+})
+
+// Clear all flows and events
+app.delete('/api/flows', (_req, res) => {
+  store.clearAll()
+  requestCount = 0
+  res.json({ success: true })
+})
+
 // TLS fingerprinting configuration endpoints
 app.get('/api/tls/config', (_req, res) => {
   const provider = getActiveProvider()
@@ -187,6 +216,8 @@ server.on('connect', (req, clientSocket) => {
   const [host, portStr] = (req.url || '').split(':')
   const port = parseInt(portStr) || 443
 
+  console.log(`[CONNECT] New tunnel request: ${host}:${port}`)
+
   // Create TLS server for the client
   const serverCtx = generateCertForHost(host)
 
@@ -199,22 +230,35 @@ server.on('connect', (req, clientSocket) => {
     secureContext: serverCtx
   } as tls.TLSSocketOptions)
 
+  tlsClient.on('secure', () => {
+    console.log(`[CONNECT] TLS handshake complete: ${host}:${port}`)
+  })
+
   tlsClient.on('error', (err) => {
-    console.error('TLS client error:', err.message)
+    console.error(`[CONNECT] TLS client error for ${host}:${port}:`, err.message)
     tlsClient.destroy()
+  })
+
+  tlsClient.on('close', () => {
+    console.log(`[CONNECT] Connection closed: ${host}:${port}`)
   })
 
   // Handle incoming HTTP requests over TLS
   let buffer = Buffer.alloc(0)
+  let requestsProcessed = 0
 
   tlsClient.on('data', (chunk) => {
+    console.log(`[CONNECT] Received ${chunk.length} bytes from ${host}:${port}, buffer now ${buffer.length + chunk.length} bytes`)
     buffer = Buffer.concat([buffer, chunk])
     processBuffer()
   })
 
   function processBuffer() {
     const headerEnd = buffer.indexOf('\r\n\r\n')
-    if (headerEnd === -1) return
+    if (headerEnd === -1) {
+      console.log(`[CONNECT] Waiting for complete headers from ${host}:${port}, have ${buffer.length} bytes`)
+      return
+    }
 
     const headerPart = buffer.slice(0, headerEnd).toString('utf-8')
     const lines = headerPart.split('\r\n')
@@ -233,7 +277,10 @@ server.on('connect', (req, clientSocket) => {
     const contentLength = parseInt(headers['content-length'] || '0', 10)
     const totalLength = headerEnd + 4 + contentLength
 
-    if (buffer.length < totalLength) return
+    if (buffer.length < totalLength) {
+      console.log(`[CONNECT] Waiting for body from ${host}:${port}, need ${totalLength} bytes, have ${buffer.length}`)
+      return
+    }
 
     const bodyStart = headerEnd + 4
     const body = contentLength > 0 ? buffer.slice(bodyStart, bodyStart + contentLength).toString('utf-8') : undefined
@@ -243,11 +290,14 @@ server.on('connect', (req, clientSocket) => {
 
     // Remove processed request from buffer
     buffer = buffer.slice(totalLength)
+    requestsProcessed++
 
     // Create flow
     const id = generateId()
     const startTime = Date.now()
     const url = `https://${host}${reqPath}`
+
+    console.log(`[CONNECT] Request #${requestsProcessed} on ${host}:${port}: ${method} ${reqPath} (flow: ${id})`)
 
     const flow: Flow = {
       id,
@@ -271,22 +321,29 @@ server.on('connect', (req, clientSocket) => {
     requestCount++
 
     // Forward request to actual server
-    const writer = createTlsWriter(tlsClient)
+    // Close connection after response if client requested it
+    const closeOnEnd = headers['connection']?.toLowerCase() === 'close'
+    const writer = createTlsWriter(tlsClient, closeOnEnd)
     const provider = getActiveProvider()
+
+    console.log(`[CONNECT] Forwarding ${method} ${reqPath} to ${host}:${port} (provider: ${provider?.isReady() ? 'utls' : 'native'})`)
 
     ;(async () => {
       try {
         const socket = provider?.isReady()
           ? await createProviderTlsSocket(host, port)
           : await createNativeTlsSocket(host, port)
+        console.log(`[CONNECT] Socket established for ${method} ${reqPath} to ${host}:${port}`)
         forwardRequest(host, port, method, reqPath, headers, body, flow, startTime, writer, socket)
       } catch (err) {
+        console.error(`[CONNECT] Failed to connect to ${host}:${port}:`, (err as Error).message)
         handleProxyError(err as Error, flow, startTime, writer)
       }
     })()
 
     // Process any remaining data in buffer
     if (buffer.length > 0) {
+      console.log(`[CONNECT] Buffer has ${buffer.length} more bytes, processing next request`)
       setImmediate(processBuffer)
     }
   }

@@ -58,6 +58,8 @@ export function handleProxyResponse(
   const { flow, startTime, writer, storeRawHttp, verbose } = options
   const id = flow.id
 
+  console.log(`[RESPONSE] Started receiving response for ${flow.request.method} ${flow.request.path} (flow: ${id}, status: ${proxyRes.statusCode})`)
+
   const contentType = proxyRes.headers['content-type'] as string | undefined
   const contentEncoding = proxyRes.headers['content-encoding'] as string | undefined
   const parser = createStreamParser(contentType, id, contentEncoding)
@@ -86,13 +88,15 @@ export function handleProxyResponse(
     store.initFlowEvents(id)
   }
 
-  // Send headers to client immediately
-  // For non-streaming with compression, remove content-encoding since we'll decompress
-  const headersToSend = { ...proxyRes.headers }
-  if (contentEncoding && !parser) {
-    delete headersToSend['content-encoding']
+  // For compressed non-streaming responses, we must buffer until end to:
+  // 1. Decompress the body
+  // 2. Send headers with correct Content-Length
+  // For uncompressed or streaming, send headers immediately
+  const needsBuffering = contentEncoding && !parser
+
+  if (!needsBuffering) {
+    writer.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
   }
-  writer.writeHead(proxyRes.statusCode || 500, headersToSend)
   store.saveFlow(flow)
 
   const responseChunks: Buffer[] = []
@@ -101,7 +105,6 @@ export function handleProxyResponse(
     responseChunks.push(chunk)
 
     // For streaming responses (SSE), write immediately to client
-    // This prevents client hangs waiting for first chunk
     if (parser) {
       writer.write(chunk)
       return
@@ -117,6 +120,8 @@ export function handleProxyResponse(
   proxyRes.on('end', () => {
     const rawBody = Buffer.concat(responseChunks)
     const duration = Date.now() - startTime
+
+    console.log(`[RESPONSE] Completed ${flow.request.method} ${flow.request.path} (flow: ${id}, ${rawBody.length} bytes, ${duration}ms)`)
 
     if (parser) {
       // Decompress for event parsing if needed
@@ -158,9 +163,15 @@ export function handleProxyResponse(
       const decompressedBody = decompressBody(rawBody, contentEncoding)
       flow.response!.body = decompressedBody
 
-      // Send decompressed body if not already sent
+      // For compressed responses, send headers now with correct Content-Length
       if (contentEncoding) {
-        writer.write(Buffer.from(decompressedBody, 'utf-8'))
+        const decompressedBuf = Buffer.from(decompressedBody, 'utf-8')
+        const headersToSend = { ...proxyRes.headers }
+        delete headersToSend['content-encoding']
+        delete headersToSend['content-length']
+        headersToSend['content-length'] = decompressedBuf.length
+        writer.writeHead(proxyRes.statusCode || 500, headersToSend)
+        writer.write(decompressedBuf)
       }
     }
 
@@ -223,15 +234,24 @@ export function createExpressWriter(res: http.ServerResponse): ResponseWriter {
 
 /**
  * Create a ResponseWriter for a TLS socket (raw HTTP output)
+ * @param socket The TLS socket to write to
+ * @param closeOnEnd Whether to close the socket when end() is called (for Connection: close)
  */
-export function createTlsWriter(socket: { write: (data: string | Buffer) => void }): ResponseWriter {
+export function createTlsWriter(
+  socket: { write: (data: string | Buffer) => void; end?: () => void },
+  closeOnEnd: boolean = false
+): ResponseWriter {
   return {
     writeHead: (status, headers) => {
       const header = buildResponseHeader(status, http.STATUS_CODES[status] || '', headers)
       socket.write(header)
     },
     write: (chunk) => socket.write(chunk),
-    end: () => { /* TLS socket stays open for more requests */ }
+    end: () => {
+      if (closeOnEnd && socket.end) {
+        socket.end()
+      }
+    }
   }
 }
 

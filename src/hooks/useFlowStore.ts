@@ -10,7 +10,7 @@ export function useFlowStore() {
     if (data.type === 'init') {
       const initData = data as unknown as { flows: Flow[]; events?: Record<string, SSEEvent[]> }
       setFlows(initData.flows.reverse())
-      
+
       // Convert events Record to Map
       const eventsMap = new Map<string, SSEEvent[]>()
       if (initData.events) {
@@ -36,12 +36,21 @@ export function useFlowStore() {
         newMap.set(flowId, [...flowEvents, event])
         return newMap
       })
+    } else if (data.type === 'clear') {
+      // Server cleared all data, sync local state
+      setFlows([])
+      setEvents(new Map())
     }
   }, [])
 
-  const clearAll = useCallback(() => {
-    setFlows([])
-    setEvents(new Map())
+  const clearAll = useCallback(async () => {
+    // Call server API to clear data
+    try {
+      await fetch('/api/flows', { method: 'DELETE' })
+    } catch (err) {
+      console.error('Failed to clear flows on server:', err)
+    }
+    // Local state will be cleared via WebSocket 'clear' message
   }, [])
 
   const getFlowEvents = useCallback((flowId: string): SSEEvent[] => {
