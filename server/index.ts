@@ -4,6 +4,7 @@ import https from 'https'
 import tls from 'tls'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { program } from 'commander'
 import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
@@ -25,57 +26,21 @@ import { utlsProvider } from './tls-provider-utls.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Parse command-line arguments
-function parseArgs() {
-  const args = process.argv.slice(2)
-  const options: { tlsProvider?: string; tlsFingerprint?: string; port?: string; help?: boolean } = {}
+program
+  .name('claudeoscope')
+  .description('Claudeoscope Proxy Server')
+  .option('-t, --tls-provider <provider>', "TLS provider: 'utls' (Go fingerprinting) or 'native' (Node.js TLS)", 'native')
+  .option('-f, --tls-fingerprint <fingerprint>', 'TLS fingerprint for utls (chrome120, firefox120, safari16, electron, etc.)', 'electron')
+  .option('-p, --port <port>', 'Port to listen on', '9090')
+  .parse()
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--help' || arg === '-h') {
-      options.help = true
-    } else if (arg === '--tls-provider' || arg === '-t') {
-      options.tlsProvider = args[++i]
-    } else if (arg === '--tls-fingerprint' || arg === '-f') {
-      options.tlsFingerprint = args[++i]
-    } else if (arg === '--port' || arg === '-p') {
-      options.port = args[++i]
-    }
-  }
+const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string }>()
 
-  return options
-}
-
-const cliArgs = parseArgs()
-
-if (cliArgs.help) {
-  console.log(`
-Claudeoscope Proxy Server
-
-Usage: npm start [options]
-
-Options:
-  -t, --tls-provider <provider>     TLS provider to use: 'utls' (Go fingerprinting) or 'native' (Node.js TLS)
-                                    Default: utls
-  -f, --tls-fingerprint <fp>        TLS fingerprint to use with utls provider
-                                    Supported: chrome120, chrome102, firefox120, safari16, electron, etc.
-                                    Default: electron
-  -p, --port <port>                 Port to listen on (default: 9090)
-  -h, --help                        Show this help message
-
-Examples:
-  npm start
-  npm start --tls-provider native
-  npm start --tls-provider utls --tls-fingerprint chrome120
-  npm start -t native -p 8080
-`)
-  process.exit(0)
-}
-
-const PORT = parseInt(cliArgs.port || process.env.PORT || '9090', 10)
+const PORT = parseInt(opts.port || process.env.PORT || '9090', 10)
 
 // TLS fingerprinting configuration
-const TLS_PROVIDER = cliArgs.tlsProvider || process.env.TLS_PROVIDER || 'native' // 'utls' or 'native'
-const TLS_FINGERPRINT = (cliArgs.tlsFingerprint || process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint
+const TLS_PROVIDER = opts.tlsProvider || process.env.TLS_PROVIDER || 'native' // 'utls' or 'native'
+const TLS_FINGERPRINT = (opts.tlsFingerprint || process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint
 
 // Initialize CA
 loadOrCreateCA()
