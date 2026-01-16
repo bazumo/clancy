@@ -1,0 +1,41 @@
+# Source files
+src/
+server/*.test.ts
+server/tls-go/
+
+# Development files
+*.test.ts
+*.spec.ts
+vitest.config.ts
+tsconfig*.json
+eslint.config.js
+components.json
+vite.config.ts
+
+# Build artifacts
+node_modules/
+*.log
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Documentation sources (compiled docs included in dist)
+docs/
+
+# Certificates (generated at runtime)
+certs/
+
+# Test fixtures
+__tests__/
+__mocks__/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -16,7 +16,7 @@ let wss: WebSocketServer | null = null
  * Initialize the WebSocket server (without attaching to HTTP server)
  * The caller should handle upgrade events and call handleUpgrade for UI connections
  */
-export function initWebSocket(_server: http.Server): void {
+export function initWebSocket(_server: http.Server): void { // eslint-disable-line @typescript-eslint/no-unused-vars
   wss = new WebSocketServer({ noServer: true })
 
   wss.on('connection', (ws) => {

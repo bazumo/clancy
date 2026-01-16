@@ -17,7 +17,7 @@ export interface StreamParser {
 class SSEParserAdapter implements StreamParser {
   private parser: SSEStreamParser
 
-  constructor(flowId: string, _contentEncoding: string | undefined) {
+  constructor(flowId: string, _contentEncoding: string | undefined) { // eslint-disable-line @typescript-eslint/no-unused-vars
     this.parser = new SSEStreamParser(flowId)
     // Note: contentEncoding is ignored here - decompression happens in proxy-handler
   }

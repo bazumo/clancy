@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import http from 'http'
-import { Writable } from 'stream'
 import type { Flow } from '../shared/types.js'
 import {
   handleProxyResponse,
@@ -8,9 +8,7 @@ import {
   createExpressWriter,
   buildResponseHeader,
   type ResponseWriter,
-  type ProxyResponseOptions
 } from './proxy-handler.js'
-import * as store from './flow-store.js'
 
 // Mock the store
 vi.mock('./flow-store.js', () => ({

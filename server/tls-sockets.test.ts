@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import https from 'https'
-import http from 'http'
 import { createServer as createHttpsServer } from 'https'
 import { gzipSync, deflateSync } from 'zlib'
-import fs from 'fs'
-import path from 'path'
 import type { Duplex } from 'stream'
 import type { Flow } from '../shared/types.js'
 import { createNativeTlsSocket, createProviderTlsSocket, forwardRequest } from './tls-sockets.js'
@@ -28,9 +26,9 @@ vi.mock('./flow-store.js', () => ({
 }))
 
 // Generate self-signed cert for test server
-function generateSelfSignedCert() {
+async function generateSelfSignedCert() {
   // Use node-forge to generate a self-signed certificate
-  const forge = require('node-forge')
+  const forge = await import('node-forge')
   const pki = forge.pki
 
   const keys = pki.rsa.generateKeyPair(2048)
@@ -99,7 +97,7 @@ const implementations: TlsImplementation[] = [
 function createMockWriter(): { writer: ResponseWriter; result: () => { status: number; headers: any; body: string; ended: boolean } } {
   let status = 0
   let headers: any = {}
-  let chunks: Buffer[] = []
+  const chunks: Buffer[] = []
   let ended = false
 
   return {
@@ -153,7 +151,7 @@ function createFlow(id: string, method: string, path: string): Flow {
 describe('TLS Socket Integration Tests', () => {
   beforeAll(async () => {
     // Generate credentials
-    credentials = generateSelfSignedCert()
+    credentials = await generateSelfSignedCert()
 
     // Create test HTTPS server
     testServer = createHttpsServer(credentials, (req, res) => {

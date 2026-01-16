@@ -8,9 +8,6 @@ interface ContentViewProps {
 }
 
 export function ContentView({ content, defaultExpanded = true }: ContentViewProps) {
-  const hasThinking = content.some(b => b.type === 'thinking')
-  const hasToolUse = content.some(b => b.type === 'tool_use')
-  
   return (
     <CollapsibleSection
       title="Content"

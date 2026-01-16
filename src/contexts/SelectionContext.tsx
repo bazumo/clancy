@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import { useQueryState, parseAsString } from 'nuqs'
 import type { Flow, SSEEvent } from '../../shared/types'

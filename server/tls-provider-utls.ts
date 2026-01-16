@@ -152,7 +152,7 @@ export class UtlsProvider implements TLSProvider {
 
             // Return the socket as a duplex stream for raw communication
             resolve(socket)
-          } catch (err) {
+          } catch {
             socket.destroy()
             reject(new Error('Invalid response from utls service: ' + responseLine))
           }

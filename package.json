@@ -2,7 +2,41 @@
   "name": "claudeoscope",
   "private": true,
   "version": "1.0.0",
+  "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
   "type": "module",
+  "author": "bazumo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bazumo/clancy.git"
+  },
+  "homepage": "https://github.com/bazumo/clancy#readme",
+  "bugs": {
+    "url": "https://github.com/bazumo/clancy/issues"
+  },
+  "keywords": [
+    "proxy",
+    "http-proxy",
+    "https-proxy",
+    "monitoring",
+    "claude",
+    "anthropic",
+    "ai",
+    "agent",
+    "tls-fingerprint",
+    "debugging"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist/",
+    "server/*.ts",
+    "server/*.js",
+    "server/parsers/",
+    "server/tls-proxy",
+    "shared/",
+    "readme.md"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -12,6 +46,7 @@
     "server": "tsx watch server/index.ts",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:unit": "vitest run --exclude='**/*e2e*.test.ts'",
     "test:tls": "vitest run server/tls-provider.test.ts"
   },
   "dependencies": {

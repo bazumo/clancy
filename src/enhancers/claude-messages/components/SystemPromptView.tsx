@@ -27,8 +27,6 @@ const CacheIcon = () => (
 export function SystemPromptView({ system, defaultExpanded = true }: SystemPromptViewProps) {
   const isArray = Array.isArray(system)
   const lastCacheIndex = isArray ? findLastCacheIndex(system) : -1
-  const hasCache = lastCacheIndex >= 0
-  const cacheType = hasCache && isArray ? system[lastCacheIndex].cache_control?.type : null
   
   return (
     <CollapsibleSection

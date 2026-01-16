@@ -30,7 +30,6 @@ export function MessagesView({ messages, defaultExpanded = true }: MessagesViewP
   
   // Find the cache breakpoint index
   const lastCacheIndex = useMemo(() => findLastCacheBreakpointIndex(messages), [messages])
-  const hasCaching = lastCacheIndex >= 0
   
   return (
     <div className="border-b border-border">

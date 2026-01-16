@@ -41,12 +41,7 @@ const zstdReady = new Promise<void>((resolve) => {
 type TransferMode = 'content-length' | 'chunked'
 type Protocol = 'http' | 'https'
 
-interface TestCase {
-  protocol: Protocol
-  compression: Compression
-  transferMode: TransferMode
-  bodySize: number
-}
+// TestCase type is inferred from cartesian product usage
 
 interface ReceivedRequest {
   method: string
@@ -125,7 +120,6 @@ let httpTargetServer: http.Server
 let httpsTargetServer: https.Server
 let proxyProcess: ChildProcess | null = null
 let receivedRequests: ReceivedRequest[] = []
-let currentTlsProvider: 'native' | 'utls' = 'native'
 
 // ============================================================================
 // Request Handler (shared by HTTP and HTTPS servers)
@@ -269,8 +263,6 @@ async function startProxy(tlsProvider: 'native' | 'utls'): Promise<void> {
     proxyProcess = null
   }
 
-  currentTlsProvider = tlsProvider
-
   return new Promise((resolve, reject) => {
     const tsxPath = path.join(__dirname, '..', 'node_modules', '.bin', 'tsx')
     const serverPath = path.join(__dirname, 'index.ts')
@@ -393,7 +385,7 @@ async function makeHttpsRequest(options: RequestOptions = {}): Promise<Response>
       let expectedLength = -1
       let bodyStartIndex = -1
       let statusCode = 0
-      let responseHeaders: http.IncomingHttpHeaders = {}
+      const responseHeaders: http.IncomingHttpHeaders = {}
 
       tlsSocket.on('data', (chunk) => {
         responseData = Buffer.concat([responseData, chunk])

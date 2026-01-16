@@ -12,7 +12,7 @@ import {
   type TLSConnectOptions,
   type TLSFingerprint,
 } from './tls-provider.js'
-import { UtlsProvider, utlsProvider } from './tls-provider-utls.js'
+import { UtlsProvider } from './tls-provider-utls.js'
 
 // ============================================================================
 // Mock Provider for Unit Tests
@@ -192,7 +192,7 @@ describe('UtlsProvider Integration', () => {
     // Try to initialize - skip tests if binary not available
     try {
       await provider.initialize()
-    } catch (err) {
+    } catch {
       console.log('Skipping integration tests: Go binary not available')
     }
   }, 15000) // Longer timeout for initialization
@@ -431,7 +431,7 @@ describe('Concurrent Connections', () => {
     provider = new UtlsProvider()
     try {
       await provider.initialize()
-    } catch (err) {
+    } catch {
       console.log('Skipping concurrent tests: Go binary not available')
     }
   }, 15000)
@@ -483,9 +483,9 @@ describe('Provider Switching', () => {
   beforeEach(async () => {
     mockProvider1.reset()
     mockProvider2.reset()
-    // @ts-ignore - Override name for testing
+    // @ts-expect-error Override readonly name for testing
     mockProvider1.name = 'mock1'
-    // @ts-ignore
+    // @ts-expect-error Override readonly name for testing
     mockProvider2.name = 'mock2'
     await shutdownActiveProvider()
   })
@@ -495,9 +495,9 @@ describe('Provider Switching', () => {
   })
 
   it('should switch between providers', async () => {
-    // @ts-ignore
+    // @ts-expect-error Mock provider with dynamic name
     registerProvider(mockProvider1)
-    // @ts-ignore
+    // @ts-expect-error Mock provider with dynamic name
     registerProvider(mockProvider2)
 
     await setActiveProvider('mock1')
@@ -512,7 +512,7 @@ describe('Provider Switching', () => {
   })
 
   it('should not shutdown when switching to same provider', async () => {
-    // @ts-ignore
+    // @ts-expect-error Mock provider with dynamic name
     registerProvider(mockProvider1)
 
     await setActiveProvider('mock1')

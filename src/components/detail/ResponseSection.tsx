@@ -1,7 +1,7 @@
 import type { Flow, SSEEvent } from '../../../shared/types'
 import type { EnhancerMatch } from '@/enhancers'
 import type { ViewMode } from '@/components/ViewModeToggle'
-import { ViewModeToggle, StatusBadge, EventCountBadge } from '@/components'
+import { ViewModeToggle, StatusBadge } from '@/components'
 import { FetchedRawHttpView } from '@/enhancers/claude-messages/components/FetchedRawHttpView'
 import { RawEventsView } from '@/enhancers/claude-messages/components/RawEventsView'
 import { EnhancedEventsView } from '@/enhancers/claude-messages/components/EnhancedEventsView'

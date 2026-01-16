@@ -439,8 +439,8 @@ function httpsThroughProxy(targetPort: number, options: RequestOptions = {}): Pr
       let responseBuffer = Buffer.alloc(0)
       let headersParsed = false
       let statusCode = 0
-      let responseHeaders: http.IncomingHttpHeaders = {}
-      let bodyChunks: Buffer[] = []
+      const responseHeaders: http.IncomingHttpHeaders = {}
+      const bodyChunks: Buffer[] = []
       let expectedLength = -1 // -1 means chunked or until close
       let isChunked = false
 

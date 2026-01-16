@@ -13,9 +13,8 @@ export function FetchedRawHttpView({ flowId, type, defaultExpanded = true }: Fet
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setLoading(true)
-    setError(null)
-    
+    let cancelled = false
+
     // Use relative URL - Vite proxy handles /api in dev, same origin in prod
     fetch(`/api/flows/${flowId}/raw`)
       .then(res => {
@@ -23,13 +22,19 @@ export function FetchedRawHttpView({ flowId, type, defaultExpanded = true }: Fet
         return res.json()
       })
       .then(data => {
-        setContent(type === 'request' ? data.request : data.response)
-        setLoading(false)
+        if (!cancelled) {
+          setContent(type === 'request' ? data.request : data.response)
+          setLoading(false)
+        }
       })
       .catch(err => {
-        setError(err.message)
-        setLoading(false)
+        if (!cancelled) {
+          setError(err.message)
+          setLoading(false)
+        }
       })
+
+    return () => { cancelled = true }
   }, [flowId, type])
 
   return (
