@@ -153,20 +153,58 @@ function createRequestHandler(req: http.IncomingMessage, res: http.ServerRespons
     const sseCount = parseInt(params.get('sseCount') || '3')
 
     if (isSSE) {
-      res.writeHead(200, {
+      // Build SSE body with multiple events
+      let sseBody = ''
+      for (let i = 1; i <= sseCount; i++) {
+        sseBody += `event: message\ndata: {"count":${i},"total":${sseCount}}\n\n`
+      }
+
+      const headers: http.OutgoingHttpHeaders = {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive'
-      })
-      let count = 0
-      const interval = setInterval(() => {
-        count++
-        res.write(`event: message\ndata: {"count":${count},"total":${sseCount}}\n\n`)
-        if (count >= sseCount) {
-          clearInterval(interval)
-          res.end()
+      }
+
+      // Support compression for SSE
+      if (compression !== 'none') {
+        const compressedBody = compress(sseBody, compression)
+        headers['Content-Encoding'] = compression
+
+        // Check if chunked transfer is requested
+        if (transferMode === 'chunked') {
+          headers['Transfer-Encoding'] = 'chunked'
+          res.writeHead(200, headers)
+          // Send compressed data in chunks (simulating real-world chunked + compressed SSE)
+          const chunkSize = Math.max(1, Math.ceil(compressedBody.length / 3))
+          let offset = 0
+          const sendChunk = () => {
+            if (offset < compressedBody.length) {
+              res.write(compressedBody.slice(offset, offset + chunkSize))
+              offset += chunkSize
+              setImmediate(sendChunk)
+            } else {
+              res.end()
+            }
+          }
+          sendChunk()
+        } else {
+          headers['Content-Length'] = compressedBody.length
+          res.writeHead(200, headers)
+          res.end(compressedBody)
         }
-      }, 20)
+      } else {
+        // Uncompressed - stream events
+        res.writeHead(200, headers)
+        let count = 0
+        const interval = setInterval(() => {
+          count++
+          res.write(`event: message\ndata: {"count":${count},"total":${sseCount}}\n\n`)
+          if (count >= sseCount) {
+            clearInterval(interval)
+            res.end()
+          }
+        }, 20)
+      }
       return
     }
 
@@ -501,8 +539,9 @@ describe('E2E Proxy Tests - Native TLS', () => {
   })
 
   describe('SSE streaming', () => {
+    // Test SSE without compression
     for (const protocol of ['http', 'https'] as Protocol[]) {
-      it(`[${protocol}] should stream SSE events`, async () => {
+      it(`[${protocol}] should stream SSE events (uncompressed)`, async () => {
         const makeRequest = protocol === 'http' ? makeHttpRequest : makeHttpsRequest
         await clearProxyState()
 
@@ -513,7 +552,7 @@ describe('E2E Proxy Tests - Native TLS', () => {
         })
 
         expect(response.status).toBe(200)
-        expect(response.headers['content-type']).toBe('text/event-stream')
+        expect(response.headers['content-type']).toContain('text/event-stream')
         const events = response.body.split('\n\n').filter(e => e.includes('data:'))
         expect(events.length).toBeGreaterThanOrEqual(5)
 
@@ -527,6 +566,58 @@ describe('E2E Proxy Tests - Native TLS', () => {
           expect(eventsData.count).toBeGreaterThanOrEqual(5)
         }
       })
+    }
+
+    // Test SSE with all compression types and transfer modes (cartesian product)
+    const sseCompressions: Compression[] = ['gzip', 'deflate', 'br', 'zstd']
+    const sseTransferModes: TransferMode[] = ['content-length', 'chunked']
+    for (const protocol of ['http', 'https'] as Protocol[]) {
+      for (const compression of sseCompressions) {
+        for (const transferMode of sseTransferModes) {
+          it(`[${protocol}] should handle SSE with ${compression} + ${transferMode}`, async () => {
+            const makeRequest = protocol === 'http' ? makeHttpRequest : makeHttpsRequest
+            await clearProxyState()
+
+            const response = await makeRequest({
+              path: '/stream',
+              query: { sse: 'true', sseCount: '5', compression, transfer: transferMode },
+              timeout: 15000
+            })
+
+            expect(response.status).toBe(200)
+            expect(response.headers['content-type']).toContain('text/event-stream')
+
+            // Body should be decompressed and contain all events
+            const events = response.body.split('\n\n').filter(e => e.includes('data:'))
+            expect(events.length).toBe(5)
+
+            // Verify each event has correct structure
+            for (let i = 0; i < events.length; i++) {
+              expect(events[i]).toContain('event: message')
+              expect(events[i]).toContain(`"count":${i + 1}`)
+            }
+
+            // Verify events were parsed and stored by proxy
+            const flowsRes = await fetch(`http://localhost:${PROXY_PORT}/api/flows`)
+            const flowsData = await flowsRes.json()
+            const sseFlow = flowsData.flows.find((f: Flow) => f.isSSE)
+            expect(sseFlow).toBeDefined()
+
+            const eventsRes = await fetch(`http://localhost:${PROXY_PORT}/api/flows/${sseFlow.id}/events`)
+            const eventsData = await eventsRes.json()
+            expect(eventsData.count).toBe(5)
+
+            // Verify each parsed event
+            for (let i = 0; i < eventsData.events.length; i++) {
+              const event = eventsData.events[i]
+              expect(event.event).toBe('message')
+              const data = JSON.parse(event.data)
+              expect(data.count).toBe(i + 1)
+              expect(data.total).toBe(5)
+            }
+          })
+        }
+      }
     }
   })
 

@@ -6,20 +6,22 @@ import type { Flow, SSEEvent } from '../shared/types.js'
 const flows = new Map<string, Flow>()
 const events = new Map<string, SSEEvent[]>()
 const rawHttp = new Map<string, { request: string; response: string }>()
+const eventSequence = new Map<string, number>()  // Track sequence per flow
 
 // WebSocket clients
 const clients = new Set<WebSocket>()
 let wss: WebSocketServer | null = null
 
 /**
- * Initialize the WebSocket server and attach to HTTP server
+ * Initialize the WebSocket server (without attaching to HTTP server)
+ * The caller should handle upgrade events and call handleUpgrade for UI connections
  */
-export function initWebSocket(server: http.Server): void {
-  wss = new WebSocketServer({ server })
+export function initWebSocket(_server: http.Server): void {
+  wss = new WebSocketServer({ noServer: true })
 
   wss.on('connection', (ws) => {
     clients.add(ws)
-    
+
     // Send existing data to new client
     const existingFlows = Array.from(flows.values()).slice(-100)
     const existingEvents: Record<string, SSEEvent[]> = {}
@@ -27,9 +29,24 @@ export function initWebSocket(server: http.Server): void {
       existingEvents[flowId] = flowEvents
     }
     ws.send(JSON.stringify({ type: 'init', flows: existingFlows, events: existingEvents }))
-    
+
     ws.on('close', () => clients.delete(ws))
   })
+}
+
+/**
+ * Handle WebSocket upgrade for UI connections
+ */
+export function handleUiWebSocketUpgrade(
+  request: http.IncomingMessage,
+  socket: import('stream').Duplex,
+  head: Buffer
+): void {
+  if (wss) {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss!.emit('connection', ws, request)
+    })
+  }
 }
 
 /**
@@ -80,6 +97,11 @@ export function initFlowEvents(flowId: string): void {
  * Add an SSE event and broadcast to all clients
  */
 export function addEvent(flowId: string, event: SSEEvent): void {
+  // Assign sequence number for stable ordering
+  const seq = (eventSequence.get(flowId) || 0) + 1
+  eventSequence.set(flowId, seq)
+  event.sequence = seq
+
   const flowEvents = events.get(flowId) || []
   flowEvents.push(event)
   events.set(flowId, flowEvents)
@@ -142,6 +164,7 @@ export function clearAll(): void {
   flows.clear()
   events.clear()
   rawHttp.clear()
+  eventSequence.clear()
   broadcast(JSON.stringify({ type: 'clear' }))
 }
 

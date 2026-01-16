@@ -6,8 +6,8 @@ import { useFilterParams } from './useFilterParams'
 export type { ItemTypeFilter } from './useFilterParams'
 
 export type SidebarItem =
-  | { type: 'flow'; flow: Flow; timestamp: string }
-  | { type: 'event'; event: SSEEvent; flow: Flow; timestamp: string }
+  | { type: 'flow'; flow: Flow; timestamp: string; sequence?: number }
+  | { type: 'event'; event: SSEEvent; flow: Flow; timestamp: string; sequence?: number }
 
 export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
   // URL-synced filter params
@@ -106,14 +106,20 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
               if (!searchable.includes(searchLower)) continue
             }
 
-            items.push({ type: 'event', event, flow, timestamp: event.timestamp })
+            items.push({ type: 'event', event, flow, timestamp: event.timestamp, sequence: event.sequence })
           }
         }
       }
     }
 
-    // Sort by timestamp (newest first)
-    items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    // Sort by timestamp (newest first), with sequence as tiebreaker for events
+    items.sort((a, b) => {
+      const timeDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      if (timeDiff !== 0) return timeDiff
+      // For events with same timestamp, use sequence (lower sequence = earlier = should appear first when reversed)
+      // Since we want newest first, higher sequence should come first
+      return (b.sequence || 0) - (a.sequence || 0)
+    })
 
     return items
   }, [flows, events, search, itemType, eventType, tags, flowTagsMap])

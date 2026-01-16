@@ -88,11 +88,11 @@ export function handleProxyResponse(
     store.initFlowEvents(id)
   }
 
-  // For compressed non-streaming responses, we must buffer until end to:
-  // 1. Decompress the body
-  // 2. Send headers with correct Content-Length
-  // For uncompressed or streaming, send headers immediately
-  const needsBuffering = contentEncoding && !parser
+  // For compressed responses (including SSE), we must buffer until end to:
+  // 1. Decompress the body (brotli/gzip can't be decompressed chunk-by-chunk)
+  // 2. Send headers with content-encoding removed
+  // For uncompressed responses, send headers immediately
+  const needsBuffering = !!contentEncoding
 
   if (!needsBuffering) {
     writer.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
@@ -104,17 +104,19 @@ export function handleProxyResponse(
   proxyRes.on('data', (chunk: Buffer) => {
     responseChunks.push(chunk)
 
-    // For streaming responses (SSE), write immediately to client
-    if (parser) {
+    // For streaming responses (SSE) WITHOUT compression, write immediately to client
+    // For compressed SSE, we must buffer until end because brotli/gzip can't be
+    // decompressed chunk-by-chunk
+    if (parser && !contentEncoding) {
       writer.write(chunk)
       return
     }
 
     // For uncompressed non-streaming responses, stream immediately
-    if (!contentEncoding) {
+    if (!contentEncoding && !parser) {
       writer.write(chunk)
     }
-    // For compressed non-streaming responses, buffer until end to decompress
+    // For compressed responses (streaming or not), buffer until end to decompress
   })
 
   proxyRes.on('end', () => {
@@ -156,7 +158,16 @@ export function handleProxyResponse(
         ? '[Bedrock Event Stream]'
         : decompressBody(rawBody, contentEncoding)
 
-      // Send decompressed body to client
+      // For compressed SSE, send headers (with encoding removed) and decompressed body
+      if (contentEncoding) {
+        const headersToSend = { ...proxyRes.headers }
+        delete headersToSend['content-encoding']
+        delete headersToSend['content-length']
+        delete headersToSend['transfer-encoding']
+        // Add Content-Length so client knows when response is complete
+        headersToSend['content-length'] = decompressedBody.length
+        writer.writeHead(proxyRes.statusCode || 500, headersToSend)
+      }
       writer.write(decompressedBody)
     } else {
       // Non-streaming response - decompress and send to client

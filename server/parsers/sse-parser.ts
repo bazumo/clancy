@@ -14,23 +14,24 @@ export class SSEStreamParser {
   processChunk(chunk: string): SSEEvent[] {
     this.buffer += chunk
     const newEvents: SSEEvent[] = []
-    
+
     // Split on double newlines (event boundaries)
-    const parts = this.buffer.split(/\n\n/)
-    
+    // Handle both LF (\n\n) and CRLF (\r\n\r\n) line endings
+    const parts = this.buffer.split(/\r?\n\r?\n/)
+
     // Keep the last part as buffer (might be incomplete)
     this.buffer = parts.pop() || ''
-    
+
     // Parse complete events
     for (const part of parts) {
       if (!part.trim()) continue
-      
+
       const event = this.parseEvent(part)
       if (event) {
         newEvents.push(event)
       }
     }
-    
+
     return newEvents
   }
   
@@ -48,13 +49,14 @@ export class SSEStreamParser {
   }
   
   private parseEvent(raw: string): SSEEvent | null {
-    const lines = raw.split('\n')
+    // Handle both LF and CRLF line endings
+    const lines = raw.split(/\r?\n/)
     const event: Partial<SSEEvent> = {
       eventId: generateId(),
       flowId: this.flowId
     }
     const dataLines: string[] = []
-    
+
     for (const line of lines) {
       if (line.startsWith('event:')) {
         event.event = line.slice(6).trim()
@@ -66,7 +68,7 @@ export class SSEStreamParser {
         event.retry = line.slice(6).trim()
       }
     }
-    
+
     if (dataLines.length > 0) {
       event.data = dataLines.join('\n')
       event.timestamp = new Date().toISOString()

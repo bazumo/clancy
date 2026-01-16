@@ -1,5 +1,6 @@
 import express from 'express'
 import http from 'http'
+import net from 'net'
 import tls from 'tls'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -8,6 +9,7 @@ import type { Flow } from '../shared/types.js'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
+import { handleUiWebSocketUpgrade } from './flow-store.js'
 import { handleProxyError, handleProxyResponse, createExpressWriter, createTlsWriter } from './proxy-handler.js'
 import {
   registerProvider,
@@ -211,6 +213,123 @@ app.use((req, res) => {
   })
 })
 
+// Handle WebSocket upgrade for HTTP (ws://) connections
+server.on('upgrade', (req, clientSocket, head) => {
+  const targetUrl = req.url || ''
+
+  // Only handle proxy requests (ws:// URLs), not local WebSocket connections
+  if (!targetUrl.startsWith('http://')) {
+    // Let the WebSocket server handle local connections (for UI)
+    handleUiWebSocketUpgrade(req, clientSocket, head)
+    return
+  }
+
+  const id = generateId()
+  const parsedUrl = new URL(targetUrl)
+  const host = parsedUrl.hostname
+  const port = parseInt(parsedUrl.port) || 80
+
+  console.log(`[WS] WebSocket upgrade request: ${host}:${port}${parsedUrl.pathname}`)
+
+  const flow: Flow = {
+    id,
+    timestamp: new Date().toISOString(),
+    host: parsedUrl.host,
+    type: 'websocket',
+    request: {
+      method: 'GET',
+      url: targetUrl,
+      path: parsedUrl.pathname + parsedUrl.search,
+      headers: req.headers as Record<string, string | string[] | undefined>
+    }
+  }
+  store.saveFlow(flow)
+  requestCount++
+
+  // Connect to upstream server
+  const upstreamSocket = net.connect(port, host, () => {
+    console.log(`[WS] Connected to upstream ${host}:${port}`)
+
+    // Forward the original upgrade request
+    let upgradeRequest = `GET ${parsedUrl.pathname}${parsedUrl.search} HTTP/1.1\r\n`
+    upgradeRequest += `Host: ${parsedUrl.host}\r\n`
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (key.toLowerCase() !== 'host') {
+        upgradeRequest += `${key}: ${Array.isArray(value) ? value.join(', ') : value}\r\n`
+      }
+    }
+    upgradeRequest += '\r\n'
+
+    upstreamSocket.write(upgradeRequest)
+    if (head.length > 0) {
+      upstreamSocket.write(head)
+    }
+
+    // Wait for upgrade response from upstream
+    let responseBuffer = Buffer.alloc(0)
+    let upgraded = false
+
+    upstreamSocket.on('data', (chunk) => {
+      if (!upgraded) {
+        responseBuffer = Buffer.concat([responseBuffer, chunk])
+        const headerEnd = responseBuffer.indexOf('\r\n\r\n')
+
+        if (headerEnd !== -1) {
+          const headerPart = responseBuffer.slice(0, headerEnd).toString('utf-8')
+          const statusLine = headerPart.split('\r\n')[0]
+          const statusMatch = statusLine.match(/HTTP\/[\d.]+ (\d+)/)
+          const statusCode = statusMatch ? parseInt(statusMatch[1]) : 0
+
+          if (statusCode === 101) {
+            console.log(`[WS] Upgrade successful for ${host}:${port}`)
+            upgraded = true
+
+            // Update flow with response
+            flow.response = {
+              status: 101,
+              statusText: 'Switching Protocols',
+              headers: {}
+            }
+            store.saveFlow(flow)
+
+            // Send response to client (including any data after headers)
+            clientSocket.write(responseBuffer)
+            responseBuffer = Buffer.alloc(0)
+
+            // Now pipe bidirectionally
+            upstreamSocket.pipe(clientSocket as net.Socket)
+            ;(clientSocket as net.Socket).pipe(upstreamSocket)
+          } else {
+            console.error(`[WS] Upgrade failed with status ${statusCode}`)
+            clientSocket.write(responseBuffer)
+            clientSocket.end()
+            upstreamSocket.end()
+          }
+        }
+      }
+    })
+  })
+
+  upstreamSocket.on('error', (err) => {
+    console.error(`[WS] Upstream connection error:`, err.message)
+    flow.response = {
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: {},
+      body: err.message
+    }
+    store.saveFlow(flow)
+    clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+    clientSocket.end()
+  })
+
+  clientSocket.on('error', (err) => {
+    console.error(`[WS] Client socket error:`, err.message)
+    upstreamSocket.destroy()
+  })
+})
+
 // Handle HTTPS CONNECT with TLS interception
 server.on('connect', (req, clientSocket) => {
   const [host, portStr] = (req.url || '').split(':')
@@ -320,7 +439,129 @@ server.on('connect', (req, clientSocket) => {
     store.saveFlow(flow)
     requestCount++
 
-    // Forward request to actual server
+    // Check if this is a WebSocket upgrade request
+    const isWebSocketUpgrade = headers['upgrade']?.toLowerCase() === 'websocket'
+
+    if (isWebSocketUpgrade) {
+      // Handle WebSocket upgrade over HTTPS (wss://)
+      console.log(`[WSS] WebSocket upgrade request: ${host}:${port}${reqPath}`)
+
+      flow.type = 'websocket'
+      store.saveFlow(flow)
+
+      ;(async () => {
+        try {
+          const provider = getActiveProvider()
+          const upstreamSocket = provider?.isReady()
+            ? await createProviderTlsSocket(host, port)
+            : await createNativeTlsSocket(host, port)
+
+          console.log(`[WSS] TLS socket established for ${host}:${port}`)
+
+          // Send the upgrade request to upstream
+          upstreamSocket.write(rawRequest)
+
+          // Handle upgrade response
+          let responseBuffer = Buffer.alloc(0)
+          let upgraded = false
+
+          const onData = (chunk: Buffer) => {
+            if (!upgraded) {
+              responseBuffer = Buffer.concat([responseBuffer, chunk])
+              const headerEnd = responseBuffer.indexOf('\r\n\r\n')
+
+              if (headerEnd !== -1) {
+                const headerPart = responseBuffer.slice(0, headerEnd).toString('utf-8')
+                const statusLine = headerPart.split('\r\n')[0]
+                const statusMatch = statusLine.match(/HTTP\/[\d.]+ (\d+)/)
+                const statusCode = statusMatch ? parseInt(statusMatch[1]) : 0
+
+                if (statusCode === 101) {
+                  console.log(`[WSS] Upgrade successful for ${host}:${port}`)
+                  upgraded = true
+
+                  // Update flow with response
+                  flow.response = {
+                    status: 101,
+                    statusText: 'Switching Protocols',
+                    headers: {}
+                  }
+                  flow.duration = Date.now() - startTime
+                  store.saveFlow(flow)
+
+                  // Remove raw HTTP since this is now a WebSocket
+                  store.deleteRawHttp(id)
+
+                  // Send response to client
+                  tlsClient.write(responseBuffer)
+                  responseBuffer = Buffer.alloc(0)
+
+                  // Remove the data listener and pipe bidirectionally
+                  upstreamSocket.removeListener('data', onData)
+                  upstreamSocket.pipe(tlsClient)
+                  tlsClient.pipe(upstreamSocket)
+                } else {
+                  console.error(`[WSS] Upgrade failed with status ${statusCode}`)
+                  flow.response = {
+                    status: statusCode,
+                    statusText: 'Upgrade Failed',
+                    headers: {},
+                    body: headerPart
+                  }
+                  flow.duration = Date.now() - startTime
+                  store.saveFlow(flow)
+
+                  tlsClient.write(responseBuffer)
+                  tlsClient.end()
+                  upstreamSocket.end()
+                }
+              }
+            }
+          }
+
+          upstreamSocket.on('data', onData)
+
+          upstreamSocket.on('error', (err) => {
+            console.error(`[WSS] Upstream socket error:`, err.message)
+            flow.response = {
+              status: 502,
+              statusText: 'Bad Gateway',
+              headers: {},
+              body: err.message
+            }
+            flow.duration = Date.now() - startTime
+            store.saveFlow(flow)
+            tlsClient.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+            tlsClient.end()
+          })
+
+          upstreamSocket.on('close', () => {
+            console.log(`[WSS] Upstream socket closed for ${host}:${port}`)
+            if (!tlsClient.destroyed) {
+              tlsClient.end()
+            }
+          })
+
+        } catch (err) {
+          console.error(`[WSS] Failed to connect to ${host}:${port}:`, (err as Error).message)
+          flow.response = {
+            status: 502,
+            statusText: 'Bad Gateway',
+            headers: {},
+            body: (err as Error).message
+          }
+          flow.duration = Date.now() - startTime
+          store.saveFlow(flow)
+          tlsClient.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+          tlsClient.end()
+        }
+      })()
+
+      // Don't process any more data in this handler - WebSocket takes over
+      return
+    }
+
+    // Forward regular request to actual server
     // Close connection after response if client requested it
     const closeOnEnd = headers['connection']?.toLowerCase() === 'close'
     const writer = createTlsWriter(tlsClient, closeOnEnd)

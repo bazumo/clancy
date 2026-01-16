@@ -1,5 +1,4 @@
 import type { SSEEvent } from '../../shared/types.js'
-import { decompressBody } from '../utils.js'
 import { SSEStreamParser } from './sse-parser.js'
 import { BedrockEventStreamParser } from './bedrock-parser.js'
 
@@ -12,21 +11,20 @@ export interface StreamParser {
 }
 
 /**
- * Wraps SSEStreamParser to accept Buffer and handle decompression
+ * Wraps SSEStreamParser to accept Buffer
+ * Note: Decompression is handled by the caller (proxy-handler.ts) before passing to this adapter
  */
 class SSEParserAdapter implements StreamParser {
   private parser: SSEStreamParser
-  private contentEncoding: string | undefined
 
-  constructor(flowId: string, contentEncoding: string | undefined) {
+  constructor(flowId: string, _contentEncoding: string | undefined) {
     this.parser = new SSEStreamParser(flowId)
-    this.contentEncoding = contentEncoding
+    // Note: contentEncoding is ignored here - decompression happens in proxy-handler
   }
 
   processChunk(chunk: Buffer): SSEEvent[] {
-    const chunkStr = this.contentEncoding 
-      ? decompressBody(chunk, this.contentEncoding) 
-      : chunk.toString('utf-8')
+    // Chunk should already be decompressed by the caller
+    const chunkStr = chunk.toString('utf-8')
     return this.parser.processChunk(chunkStr)
   }
 

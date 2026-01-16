@@ -14,6 +14,7 @@ export interface SSEEvent {
   id?: string
   retry?: string
   timestamp: string
+  sequence?: number  // Order within flow (for stable sorting)
 }
 
 export interface FlowResponse {
@@ -27,7 +28,7 @@ export interface Flow {
   id: string
   timestamp: string
   host: string
-  type: 'http' | 'https'
+  type: 'http' | 'https' | 'websocket'
   request: FlowRequest
   response?: FlowResponse
   duration?: number
