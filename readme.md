@@ -1,4 +1,4 @@
-# Claudeoscope
+# Clancy
 
 HTTP/HTTPS proxy with real-time monitoring for Agent traffic. Designed for debugging and monitoring Claude Code, Anthropic API calls, and other AI agent communications.
 

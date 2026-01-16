@@ -131,7 +131,7 @@ async function startProxy(): Promise<void> {
     let started = false
     proxyProcess.stdout?.on('data', (data) => {
       const str = data.toString()
-      if (!started && str.includes('Claudeoscope proxy running')) {
+      if (!started && str.includes('Clancy proxy running')) {
         started = true
         setTimeout(resolve, 300)
       }

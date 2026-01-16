@@ -38,8 +38,8 @@ export function loadOrCreateCA() {
     caCert.validity.notAfter.setFullYear(caCert.validity.notBefore.getFullYear() + 10)
 
     const attrs = [
-      { name: 'commonName', value: 'Claudeoscope Proxy CA' },
-      { name: 'organizationName', value: 'Claudeoscope' }
+      { name: 'commonName', value: 'Clancy Proxy CA' },
+      { name: 'organizationName', value: 'Clancy' }
     ]
     caCert.setSubject(attrs)
     caCert.setIssuer(attrs)

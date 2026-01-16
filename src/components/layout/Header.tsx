@@ -12,7 +12,7 @@ export function Header({ connected, flowCount, eventCount, onClear }: HeaderProp
   return (
     <header className="h-12 border-b-4 border-border flex items-center justify-between px-4 shrink-0">
       <div className="flex items-center gap-3">
-        <h1 className="text-sm font-medium tracking-tight">Claudeoscope</h1>
+        <h1 className="text-sm font-medium tracking-tight">Clancy</h1>
         <div
           className={cn(
             'w-1.5 h-1.5 rounded-full',

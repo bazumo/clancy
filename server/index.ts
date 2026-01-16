@@ -26,8 +26,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Parse command-line arguments
 program
-  .name('claudeoscope')
-  .description('Claudeoscope Proxy Server')
+  .name('clancy')
+  .description('Clancy Proxy Server')
   .option('-t, --tls-provider <provider>', "TLS provider: 'utls' (Go fingerprinting) or 'native' (Node.js TLS)", 'native')
   .option('-f, --tls-fingerprint <fingerprint>', 'TLS fingerprint for utls (chrome120, firefox120, safari16, electron, etc.)', 'electron')
   .option('-p, --port <port>', 'Port to listen on', '9090')
@@ -600,7 +600,7 @@ async function start() {
   await initTLSProvider()
 
   server.listen(PORT, () => {
-    console.log(`Claudeoscope proxy running on http://localhost:${PORT}`)
+    console.log(`Clancy proxy running on http://localhost:${PORT}`)
     console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
     console.log(`TLS Provider: ${TLS_PROVIDER === 'native' ? 'Node.js (native)' : `uTLS (Go) - ${TLS_FINGERPRINT}`}`)
   })

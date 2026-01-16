@@ -274,7 +274,7 @@ async function startProxy(tlsProvider: 'native' | 'utls'): Promise<void> {
 
     let started = false
     proxyProcess.stdout?.on('data', (data) => {
-      if (!started && data.toString().includes('Claudeoscope proxy running')) {
+      if (!started && data.toString().includes('Clancy proxy running')) {
         started = true
         setTimeout(resolve, 300)
       }
