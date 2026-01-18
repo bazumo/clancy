@@ -749,7 +749,7 @@ describe('Proxy Handler', () => {
           try {
             expect(endCallCount).toBe(1)
             resolve()
-          } catch (err) {
+          } catch {
             reject(new Error(`writer.end() was called ${endCallCount} times instead of 1`))
           }
         }, 200)

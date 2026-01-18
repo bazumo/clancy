@@ -73,21 +73,6 @@ export function GeneralView({ request, defaultExpanded = true }: GeneralViewProp
           </div>
         )}
         
-        {/* Stream */}
-        <div className="flex items-start gap-3">
-          <span className="text-xs text-muted-foreground w-28 shrink-0">Streaming</span>
-          <div>
-            <span className={cn(
-              'text-xs px-1.5 py-0.5 rounded',
-              request.stream ? 'bg-cyan-500/15 text-cyan-400' : 'bg-muted text-muted-foreground'
-            )}>
-              {request.stream ? 'enabled' : 'disabled'}
-            </span>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {request.stream ? 'Response sent as server-sent events' : 'Response sent as single JSON'}
-            </p>
-          </div>
-        </div>
         
         {/* Thinking */}
         {request.thinking && (

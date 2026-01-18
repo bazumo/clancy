@@ -493,7 +493,9 @@ describe('TLS Socket Integration Tests', () => {
             await impl.createSocket('localhost', 59999)
             expect.fail('Should have thrown an error')
           } catch (err: any) {
-            expect(err.message).toMatch(/ECONNREFUSED|connection refused|failed/i)
+            // Error may have code property (e.g., 'ECONNREFUSED') or message
+            const errorInfo = err.code || err.message || ''
+            expect(errorInfo).toMatch(/ECONNREFUSED|connection refused|failed/i)
           }
         })
       })
