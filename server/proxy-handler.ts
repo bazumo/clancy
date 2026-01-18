@@ -95,42 +95,58 @@ export function handleProxyResponse(
   const needsBuffering = !!contentEncoding
 
   if (!needsBuffering) {
-    writer.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
+    // For streaming responses (SSE/Bedrock), Node.js decodes chunked encoding internally.
+    // We receive decoded body data, not the raw chunked bytes. But the original headers
+    // still include Transfer-Encoding: chunked, which would make the client wait forever
+    // for the 0\r\n\r\n terminator that we never send.
+    //
+    // Fix: For streaming responses, remove transfer-encoding and use Connection: close
+    // to signal end-of-body when the stream ends.
+    const headersToSend = { ...proxyRes.headers }
+    if (parser) {
+      delete headersToSend['transfer-encoding']
+      delete headersToSend['content-length']
+      headersToSend['connection'] = 'close'
+    }
+    writer.writeHead(proxyRes.statusCode || 500, headersToSend)
   }
   store.saveFlow(flow)
 
   const responseChunks: Buffer[] = []
 
-  proxyRes.on('data', (chunk: Buffer) => {
-    responseChunks.push(chunk)
+  // Track whether the stream has been finalized to prevent double-close
+  let streamFinalized = false
 
-    // For streaming responses (SSE) WITHOUT compression, write immediately to client
-    // For compressed SSE, we must buffer until end because brotli/gzip can't be
-    // decompressed chunk-by-chunk
-    if (parser && !contentEncoding) {
-      writer.write(chunk)
-      return
-    }
+  /**
+   * Finalize the stream - called on 'end', 'error', or 'close' events.
+   * Ensures cleanup happens exactly once regardless of which event fires first.
+   */
+  const finalizeStream = (reason: 'end' | 'error' | 'close', error?: Error) => {
+    if (streamFinalized) return
+    streamFinalized = true
 
-    // For uncompressed non-streaming responses, stream immediately
-    if (!contentEncoding && !parser) {
-      writer.write(chunk)
-    }
-    // For compressed responses (streaming or not), buffer until end to decompress
-  })
-
-  proxyRes.on('end', () => {
     const rawBody = Buffer.concat(responseChunks)
     const duration = Date.now() - startTime
 
-    console.log(`[RESPONSE] Completed ${flow.request.method} ${flow.request.path} (flow: ${id}, ${rawBody.length} bytes, ${duration}ms)`)
+    if (reason === 'error') {
+      console.error(`[RESPONSE] Error during ${flow.request.method} ${flow.request.path} (flow: ${id}): ${error?.message}`)
+    } else if (reason === 'close' && !proxyRes.complete) {
+      console.warn(`[RESPONSE] Connection closed prematurely for ${flow.request.method} ${flow.request.path} (flow: ${id}, ${rawBody.length} bytes received)`)
+    } else {
+      console.log(`[RESPONSE] Completed ${flow.request.method} ${flow.request.path} (flow: ${id}, ${rawBody.length} bytes, ${duration}ms)`)
+    }
 
     if (parser) {
       // Decompress for event parsing if needed
       let decompressedBody = rawBody
-      if (contentEncoding) {
-        const decompressed = decompressBody(rawBody, contentEncoding)
-        decompressedBody = Buffer.from(decompressed, 'utf-8')
+      if (contentEncoding && rawBody.length > 0) {
+        try {
+          const decompressed = decompressBody(rawBody, contentEncoding)
+          decompressedBody = Buffer.from(decompressed, 'utf-8')
+        } catch (err) {
+          console.error(`[RESPONSE] Decompression failed for flow ${id}:`, err)
+          decompressedBody = rawBody
+        }
       }
 
       // Parse events from decompressed data
@@ -159,6 +175,7 @@ export function handleProxyResponse(
         : decompressBody(rawBody, contentEncoding)
 
       // For compressed SSE, send headers (with encoding removed) and decompressed body
+      // For uncompressed SSE, data was already streamed - don't write again
       if (contentEncoding) {
         const headersToSend = { ...proxyRes.headers }
         delete headersToSend['content-encoding']
@@ -167,8 +184,9 @@ export function handleProxyResponse(
         // Add Content-Length so client knows when response is complete
         headersToSend['content-length'] = decompressedBody.length
         writer.writeHead(proxyRes.statusCode || 500, headersToSend)
+        writer.write(decompressedBody)
       }
-      writer.write(decompressedBody)
+      // Note: For uncompressed SSE, data was already written in the 'data' handler
     } else {
       // Non-streaming response - decompress and send to client
       const decompressedBody = decompressBody(rawBody, contentEncoding)
@@ -202,6 +220,42 @@ export function handleProxyResponse(
     }
 
     writer.end()
+  }
+
+  proxyRes.on('data', (chunk: Buffer) => {
+    // Ignore data if stream is already finalized
+    if (streamFinalized) return
+
+    responseChunks.push(chunk)
+
+    // For streaming responses (SSE) WITHOUT compression, write immediately to client
+    // For compressed SSE, we must buffer until end because brotli/gzip can't be
+    // decompressed chunk-by-chunk
+    if (parser && !contentEncoding) {
+      writer.write(chunk)
+      return
+    }
+
+    // For uncompressed non-streaming responses, stream immediately
+    if (!contentEncoding && !parser) {
+      writer.write(chunk)
+    }
+    // For compressed responses (streaming or not), buffer until end to decompress
+  })
+
+  proxyRes.on('end', () => {
+    finalizeStream('end')
+  })
+
+  // Handle error events - connection errors, timeouts, etc.
+  proxyRes.on('error', (err: Error) => {
+    finalizeStream('error', err)
+  })
+
+  // Handle close events - connection closed before 'end' (e.g., client disconnect, network failure)
+  proxyRes.on('close', () => {
+    // 'close' fires after 'end' in normal cases, but can fire without 'end' on abrupt disconnection
+    finalizeStream('close')
   })
 }
 
@@ -253,14 +307,24 @@ export function createTlsWriter(
   socket: { write: (data: string | Buffer) => void; end?: () => void },
   closeOnEnd: boolean = false
 ): ResponseWriter {
+  let sentConnectionClose = false
+
   return {
     writeHead: (status, headers) => {
+      // Check if we're sending Connection: close in the response
+      const connectionHeader = headers['connection']
+      if (connectionHeader && String(connectionHeader).toLowerCase() === 'close') {
+        sentConnectionClose = true
+      }
       const header = buildResponseHeader(status, http.STATUS_CODES[status] || '', headers)
       socket.write(header)
     },
     write: (chunk) => socket.write(chunk),
     end: () => {
-      if (closeOnEnd && socket.end) {
+      // Close socket if either:
+      // 1. Request had Connection: close (closeOnEnd)
+      // 2. Response had Connection: close (sentConnectionClose)
+      if ((closeOnEnd || sentConnectionClose) && socket.end) {
         socket.end()
       }
     }

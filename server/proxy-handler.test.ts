@@ -34,10 +34,18 @@ vi.mock('./utils.js', () => ({
   }
 }))
 
-// Mock parsers
+// Mock parsers - return a mock parser for streaming content types
 vi.mock('./parsers/index.js', () => ({
-  createStreamParser: vi.fn(() => null),
-  isBedrockStream: vi.fn(() => false)
+  createStreamParser: vi.fn((contentType: string) => {
+    if (contentType?.includes('text/event-stream') || contentType?.includes('application/vnd.amazon.eventstream')) {
+      return {
+        processChunk: () => [],
+        flush: () => []
+      }
+    }
+    return null
+  }),
+  isBedrockStream: vi.fn((contentType: string) => contentType?.includes('application/vnd.amazon.eventstream') ?? false)
 }))
 
 describe('Proxy Handler', () => {
@@ -496,6 +504,408 @@ describe('Proxy Handler', () => {
 
       writer.end()
       expect(mockRes.end).toHaveBeenCalled()
+    })
+  })
+
+  describe('Stream Closing - Error and Close Events', () => {
+    it('should close writer when proxyRes emits error event', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = { 'content-type': 'text/event-stream' }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-error-event',
+          timestamp: new Date().toISOString(),
+          host: 'api.example.com',
+          type: 'http',
+          request: { method: 'GET', url: 'http://api.example.com/stream', path: '/stream', headers: {} }
+        }
+
+        const timeout = setTimeout(() => {
+          reject(new Error('BUG: Stream hung after error event - writer.end() was never called'))
+        }, 1000)
+
+        let endWasCalled = false
+        const testWriter: ResponseWriter = {
+          writeHead: mockWriter.writeHead,
+          write: mockWriter.write,
+          end: () => {
+            if (!endWasCalled) {
+              endWasCalled = true
+              clearTimeout(timeout)
+              mockWriter.end()
+              resolve()
+            }
+          }
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send some data
+        mockProxyRes.emit('data', Buffer.from('data: {"msg":"1"}\n\n'))
+
+        // Emit error event - this should close the stream
+        setTimeout(() => {
+          mockProxyRes.emit('error', new Error('Connection reset by peer'))
+        }, 50)
+      })
+    })
+
+    it('should close writer when proxyRes emits close event without end', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = { 'content-type': 'text/event-stream' }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-close-event',
+          timestamp: new Date().toISOString(),
+          host: 'api.example.com',
+          type: 'http',
+          request: { method: 'GET', url: 'http://api.example.com/stream', path: '/stream', headers: {} }
+        }
+
+        const timeout = setTimeout(() => {
+          reject(new Error('BUG: Stream hung after close event - writer.end() was never called'))
+        }, 1000)
+
+        let endWasCalled = false
+        const testWriter: ResponseWriter = {
+          writeHead: mockWriter.writeHead,
+          write: mockWriter.write,
+          end: () => {
+            if (!endWasCalled) {
+              endWasCalled = true
+              clearTimeout(timeout)
+              mockWriter.end()
+              resolve()
+            }
+          }
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send some data
+        mockProxyRes.emit('data', Buffer.from('data: {"msg":"1"}\n\n'))
+
+        // Emit close event without end - simulates abrupt connection close
+        setTimeout(() => {
+          mockProxyRes.emit('close')
+        }, 50)
+      })
+    })
+
+    it('should handle Bedrock stream error without hanging', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = { 'content-type': 'application/vnd.amazon.eventstream' }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-bedrock-error',
+          timestamp: new Date().toISOString(),
+          host: 'bedrock-runtime.us-east-1.amazonaws.com',
+          type: 'http',
+          request: { method: 'POST', url: 'http://bedrock-runtime.us-east-1.amazonaws.com/invoke', path: '/invoke', headers: {} }
+        }
+
+        const timeout = setTimeout(() => {
+          reject(new Error('BUG: Bedrock stream hung after error - writer.end() was never called'))
+        }, 1000)
+
+        let endWasCalled = false
+        const testWriter: ResponseWriter = {
+          writeHead: mockWriter.writeHead,
+          write: mockWriter.write,
+          end: () => {
+            if (!endWasCalled) {
+              endWasCalled = true
+              clearTimeout(timeout)
+              mockWriter.end()
+              resolve()
+            }
+          }
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send some binary data
+        mockProxyRes.emit('data', Buffer.from([0x00, 0x00, 0x00, 0x10]))
+
+        // Emit error
+        setTimeout(() => {
+          mockProxyRes.emit('error', new Error('AWS connection error'))
+        }, 50)
+      })
+    })
+
+    it('should handle Bedrock stream close without end event', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = { 'content-type': 'application/vnd.amazon.eventstream' }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-bedrock-close',
+          timestamp: new Date().toISOString(),
+          host: 'bedrock-runtime.us-east-1.amazonaws.com',
+          type: 'http',
+          request: { method: 'POST', url: 'http://bedrock-runtime.us-east-1.amazonaws.com/invoke', path: '/invoke', headers: {} }
+        }
+
+        const timeout = setTimeout(() => {
+          reject(new Error('BUG: Bedrock stream hung after close - writer.end() was never called'))
+        }, 1000)
+
+        let endWasCalled = false
+        const testWriter: ResponseWriter = {
+          writeHead: mockWriter.writeHead,
+          write: mockWriter.write,
+          end: () => {
+            if (!endWasCalled) {
+              endWasCalled = true
+              clearTimeout(timeout)
+              mockWriter.end()
+              resolve()
+            }
+          }
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send some binary data
+        mockProxyRes.emit('data', Buffer.from([0x00, 0x00, 0x00, 0x10]))
+
+        // Emit close without end
+        setTimeout(() => {
+          mockProxyRes.emit('close')
+        }, 50)
+      })
+    })
+
+    it('should not call writer.end() multiple times', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = { 'content-type': 'text/event-stream' }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-double-end',
+          timestamp: new Date().toISOString(),
+          host: 'api.example.com',
+          type: 'http',
+          request: { method: 'GET', url: 'http://api.example.com/stream', path: '/stream', headers: {} }
+        }
+
+        let endCallCount = 0
+        const testWriter: ResponseWriter = {
+          writeHead: mockWriter.writeHead,
+          write: mockWriter.write,
+          end: () => {
+            endCallCount++
+            mockWriter.end()
+          }
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        mockProxyRes.emit('data', Buffer.from('data: {"msg":"1"}\n\n'))
+
+        // Emit multiple close/end events rapidly
+        setTimeout(() => {
+          mockProxyRes.emit('error', new Error('Connection error'))
+          mockProxyRes.emit('close')
+          mockProxyRes.emit('end')
+        }, 50)
+
+        // Check after all events processed
+        setTimeout(() => {
+          try {
+            expect(endCallCount).toBe(1)
+            resolve()
+          } catch (err) {
+            reject(new Error(`writer.end() was called ${endCallCount} times instead of 1`))
+          }
+        }, 200)
+      })
+    })
+
+    it('should handle SSE stream that ends mid-chunk gracefully', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = { 'content-type': 'text/event-stream' }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-mid-chunk',
+          timestamp: new Date().toISOString(),
+          host: 'api.example.com',
+          type: 'http',
+          request: { method: 'GET', url: 'http://api.example.com/stream', path: '/stream', headers: {} }
+        }
+
+        const timeout = setTimeout(() => {
+          reject(new Error('BUG: Stream hung when closing mid-chunk'))
+        }, 1000)
+
+        let endWasCalled = false
+        const testWriter: ResponseWriter = {
+          writeHead: mockWriter.writeHead,
+          write: mockWriter.write,
+          end: () => {
+            if (!endWasCalled) {
+              endWasCalled = true
+              clearTimeout(timeout)
+              mockWriter.end()
+              resolve()
+            }
+          }
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send incomplete chunk
+        mockProxyRes.emit('data', Buffer.from('data: {"msg":"incomplete'))
+
+        // Connection closes abruptly
+        setTimeout(() => {
+          mockProxyRes.emit('close')
+        }, 50)
+      })
+    })
+
+    it('should set Connection: close header for streaming responses to signal end-of-body', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = {
+              'content-type': 'text/event-stream',
+              'transfer-encoding': 'chunked'
+            }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-connection-close',
+          timestamp: new Date().toISOString(),
+          host: 'api.example.com',
+          type: 'http',
+          request: { method: 'GET', url: 'http://api.example.com/stream', path: '/stream', headers: {} }
+        }
+
+        let capturedHeaders: any = null
+        const testWriter: ResponseWriter = {
+          writeHead: (status, headers) => {
+            capturedHeaders = headers
+          },
+          write: mockWriter.write,
+          end: mockWriter.end
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send data and end
+        mockProxyRes.emit('data', Buffer.from('data: {"msg":"test"}\n\n'))
+        mockProxyRes.emit('end')
+
+        setTimeout(() => {
+          try {
+            // For streaming responses, we should:
+            // 1. Remove transfer-encoding (we forward decoded data, not chunked)
+            // 2. Set Connection: close so client knows when stream ends
+            expect(capturedHeaders).not.toBeNull()
+            expect(capturedHeaders['transfer-encoding']).toBeUndefined()
+            expect(capturedHeaders['connection']).toBe('close')
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        }, 50)
+      })
+    })
+
+    it('should set Connection: close header for Bedrock streaming responses', () => {
+      return new Promise<void>((resolve, reject) => {
+        const mockProxyRes = new (class extends http.IncomingMessage {
+          constructor() {
+            super(null as any)
+            this.statusCode = 200
+            this.statusMessage = 'OK'
+            this.headers = {
+              'content-type': 'application/vnd.amazon.eventstream',
+              'transfer-encoding': 'chunked'
+            }
+          }
+        })()
+
+        const flow: Flow = {
+          id: 'test-bedrock-connection-close',
+          timestamp: new Date().toISOString(),
+          host: 'bedrock-runtime.us-east-1.amazonaws.com',
+          type: 'http',
+          request: { method: 'POST', url: 'http://bedrock.aws/invoke', path: '/invoke', headers: {} }
+        }
+
+        let capturedHeaders: any = null
+        const testWriter: ResponseWriter = {
+          writeHead: (status, headers) => {
+            capturedHeaders = headers
+          },
+          write: mockWriter.write,
+          end: mockWriter.end
+        }
+
+        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
+
+        // Send data and end
+        mockProxyRes.emit('data', Buffer.from([0x00, 0x00, 0x00, 0x10]))
+        mockProxyRes.emit('end')
+
+        setTimeout(() => {
+          try {
+            expect(capturedHeaders).not.toBeNull()
+            expect(capturedHeaders['transfer-encoding']).toBeUndefined()
+            expect(capturedHeaders['connection']).toBe('close')
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        }, 50)
+      })
     })
   })
 })
