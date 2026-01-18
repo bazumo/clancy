@@ -7,6 +7,12 @@ import type { TLSProvider, TLSConnectOptions, TLSFingerprint } from './tls-provi
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+function getBinaryPath(): string {
+  const platform = process.platform === 'darwin' ? 'darwin' : 'linux'
+  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64'
+  return path.join(__dirname, '..', 'server', 'tls-binaries', `tls-proxy-${platform}-${arch}`)
+}
+
 /**
  * TLS Provider using Go utls for fingerprint spoofing
  * Spawns a Go binary that handles TLS connections with configurable ClientHello
@@ -41,7 +47,7 @@ export class UtlsProvider implements TLSProvider {
   async initialize(): Promise<void> {
     if (this.ready) return
 
-    const binaryPath = path.join(__dirname, '..', 'server', 'tls-proxy')
+    const binaryPath = getBinaryPath()
     const socketPath = `/tmp/claudio-tls-${process.pid}.sock`
 
     return new Promise((resolve, reject) => {

@@ -35,14 +35,15 @@
     "bin/",
     "dist/",
     "dist-server/",
-    "server/tls-proxy",
+    "server/tls-binaries/",
     "readme.md"
   ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:server": "tsc -p tsconfig.server.json",
-    "build:all": "npm run build && npm run build:server",
+    "build:binaries": "server/tls-go/build.sh",
+    "build:all": "npm run build && npm run build:server && npm run build:binaries",
     "prepublishOnly": "npm run build:all",
     "lint": "eslint .",
     "preview": "vite preview",
