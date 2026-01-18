@@ -41,7 +41,7 @@ export class UtlsProvider implements TLSProvider {
   async initialize(): Promise<void> {
     if (this.ready) return
 
-    const binaryPath = path.join(__dirname, 'tls-proxy')
+    const binaryPath = path.join(__dirname, '..', 'server', 'tls-proxy')
     const socketPath = `/tmp/claudio-tls-${process.pid}.sock`
 
     return new Promise((resolve, reject) => {

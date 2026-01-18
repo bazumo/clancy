@@ -28,18 +28,22 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "bin": {
+    "clancy": "./bin/clancy.js"
+  },
   "files": [
+    "bin/",
     "dist/",
-    "server/*.ts",
-    "server/*.js",
-    "server/parsers/",
+    "dist-server/",
     "server/tls-proxy",
-    "shared/",
     "readme.md"
   ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:all": "npm run build && npm run build:server",
+    "prepublishOnly": "npm run build:all",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "npm run build && tsx server/index.ts",

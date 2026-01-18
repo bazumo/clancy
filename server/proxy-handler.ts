@@ -182,7 +182,7 @@ export function handleProxyResponse(
         delete headersToSend['content-length']
         delete headersToSend['transfer-encoding']
         // Add Content-Length so client knows when response is complete
-        headersToSend['content-length'] = decompressedBody.length
+        headersToSend['content-length'] = String(decompressedBody.length)
         writer.writeHead(proxyRes.statusCode || 500, headersToSend)
         writer.write(decompressedBody)
       }
@@ -199,7 +199,7 @@ export function handleProxyResponse(
         delete headersToSend['content-encoding']
         delete headersToSend['content-length']
         delete headersToSend['transfer-encoding']
-        headersToSend['content-length'] = decompressedBuf.length
+        headersToSend['content-length'] = String(decompressedBuf.length)
         writer.writeHead(proxyRes.statusCode || 500, headersToSend)
         writer.write(decompressedBuf)
       }
