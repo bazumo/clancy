@@ -2,6 +2,10 @@
 
 HTTP/HTTPS proxy with real-time monitoring for Agent traffic. Designed for debugging and monitoring Claude Code, Anthropic API calls, and other AI agent communications.
 
+
+![Screenshot](screenshot.png)
+
+
 ## Features
 
 - **Real-time monitoring** - WebSocket-based live updates as requests flow through
