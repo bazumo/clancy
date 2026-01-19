@@ -40,6 +40,7 @@
   ],
   "scripts": {
     "dev": "vite",
+    "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "build:binaries": "server/tls-go/build.sh",
@@ -48,7 +49,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "npm run build && tsx server/index.ts",
-    "server": "tsx watch server/index.ts",
+    "server": "tsx server/index.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "test:unit": "vitest run --exclude='**/*e2e*.test.ts'",
