@@ -9,7 +9,7 @@ HTTP/HTTPS proxy with real-time monitoring for Agent traffic. Designed for debug
 - **TLS fingerprinting** - Spoof browser TLS fingerprints using uTLS
 - **SSE parsing** - Automatic parsing and display of Server-Sent Events
 - **Request/Response inspection** - View headers, bodies, timing, and more
-- **Enhanced view for agent traffic** - 
+- **Enhanced view for agent traffic** - View tools, system prompt, messages etc. inside LLM API calls
 
 It has been tested with:
 - Claude code
