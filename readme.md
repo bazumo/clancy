@@ -57,7 +57,7 @@ The server will start on `http://localhost:9090` with the web dashboard.
 
 ## Usage
 
-### With Claude Code
+### node.js/bun based app (claude,opencode)
 
 ```bash
 HTTP_PROXY=http://localhost:9090 \
@@ -66,13 +66,10 @@ NODE_TLS_REJECT_UNAUTHORIZED=0 \
 claude
 ```
 
-### With OpenCode
+### electron based app (e.g. Claude Desktop)
 
 ```bash
-HTTP_PROXY=http://localhost:9090 \
-HTTPS_PROXY=http://localhost:9090 \
-NODE_TLS_REJECT_UNAUTHORIZED=0 \
-opencode
+/Applications/Claude.app/Contents/MacOS/Claude --proxy-server="http://localhost:9090" --ignore-certificate-errors
 ```
 
 Other applications might work as well.

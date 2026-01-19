@@ -182,7 +182,7 @@ export interface ConverseStreamRequest {
 }
 
 // Non-streaming version
-export interface ConverseRequest extends ConverseStreamRequest {}
+export type ConverseRequest = ConverseStreamRequest
 
 // ============================================================================
 // Streaming Event Types

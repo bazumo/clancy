@@ -97,7 +97,7 @@ describe('BedrockEventStreamParser', () => {
         { type: 'contentBlockDelta', index: 0, delta: { type: 'text_delta', text: 'Hello' } }
       ]
       
-      const messages = events.map((eventData, i) => {
+      const messages = events.map((eventData) => {
         const base64Data = Buffer.from(JSON.stringify(eventData)).toString('base64')
         const payload = JSON.stringify({ bytes: base64Data })
         
