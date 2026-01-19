@@ -31,11 +31,13 @@ program
   .option('-t, --tls-provider <provider>', "TLS provider: 'utls' (Go fingerprinting) or 'native' (Node.js TLS)", 'native')
   .option('-f, --tls-fingerprint <fingerprint>', 'TLS fingerprint for utls (chrome120, firefox120, safari16, electron, etc.)', 'electron')
   .option('-p, --port <port>', 'Port to listen on', '9090')
+  .option('-H, --host <host>', 'Host to bind to', 'localhost')
   .parse()
 
-const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string }>()
+const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string; host: string }>()
 
 const PORT = parseInt(opts.port || process.env.PORT || '9090', 10)
+const HOST = opts.host || process.env.HOST || 'localhost'
 
 // TLS fingerprinting configuration
 const TLS_PROVIDER = opts.tlsProvider || process.env.TLS_PROVIDER || 'native' // 'utls' or 'native'
@@ -599,8 +601,8 @@ server.on('connect', (req, clientSocket) => {
 async function start() {
   await initTLSProvider()
 
-  server.listen(PORT, () => {
-    console.log(`Clancy proxy running on http://localhost:${PORT}`)
+  server.listen(PORT, HOST, () => {
+    console.log(`Clancy proxy running on http://${HOST}:${PORT}`)
     console.log(`CA certificate: ${path.join(CERTS_DIR, 'ca.crt')}`)
     console.log(`TLS Provider: ${TLS_PROVIDER === 'native' ? 'Node.js (native)' : `uTLS (Go) - ${TLS_FINGERPRINT}`}`)
   })

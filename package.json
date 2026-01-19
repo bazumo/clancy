@@ -1,7 +1,6 @@
 {
   "name": "clancy-proxy",
-  "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
   "type": "module",
   "author": "bazumo",
@@ -29,7 +28,7 @@
     "node": ">=20.0.0"
   },
   "bin": {
-    "clancy": "./bin/clancy.js"
+    "clancy": "bin/clancy.js"
   },
   "files": [
     "bin/",

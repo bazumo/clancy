@@ -29,6 +29,20 @@ Run it with npx:
 npx clancy-proxy
 ```
 
+## Global Installation
+
+Install globally to use the `clancy` command anywhere:
+
+```bash
+npm install -g clancy-proxy
+```
+
+Then run:
+
+```bash
+clancy
+```
+
 ## Quick Start (from source)
 
 ```bash
@@ -74,6 +88,7 @@ curl -x http://localhost:9090 -k https://api.anthropic.com/v1/messages
 ```
 Options:
   -p, --port <port>                Port to listen on (default: "9090")
+  -H, --host <host>                Host to bind to (default: "localhost")
   -t, --tls-provider <provider>    TLS provider: 'utls' (Go fingerprinting) or 'native' (Node.js TLS) (default: "native")
   -f, --tls-fingerprint <fp>       TLS fingerprint for utls (default: "electron")
   -h, --help                       Display help
