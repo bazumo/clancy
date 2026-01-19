@@ -30,6 +30,7 @@ docs/
 
 # Certificates (generated at runtime)
 certs/
+dist-server/certs/
 
 # Test fixtures
 __tests__/
