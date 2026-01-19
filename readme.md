@@ -19,11 +19,10 @@ It has been tested with:
 
 ## Quick Start (npx)
 
-
-Run it with npx
+Run it with npx:
 
 ```bash
-TODO still nedd to publish this
+npx clancy-proxy
 ```
 
 ## Quick Start (from source)
@@ -44,14 +43,6 @@ The server will start on `http://localhost:9090` with the web dashboard.
 
 ### Basic Usage
 
-Run any CLI application through the proxy:
-
-```bash
-HTTP_PROXY=http://localhost:9090 \
-HTTPS_PROXY=http://localhost:9090 \
-NODE_TLS_REJECT_UNAUTHORIZED=0 \
-claude "your prompt"
-```
 
 ### With Claude Code
 
@@ -61,6 +52,13 @@ HTTPS_PROXY=http://localhost:9090 \
 NODE_TLS_REJECT_UNAUTHORIZED=0 \
 claude
 ```
+
+### With open code:
+```
+HTTP_PROXY=http://localhost:9090 HTTPS_PROXY=http://localhost:9090 NODE_TLS_REJECT_UNAUTHORIZED=0 opencode
+```
+
+Other applications might work as well.
 
 ### With curl
 
