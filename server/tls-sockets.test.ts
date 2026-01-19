@@ -9,6 +9,19 @@ import { createNativeTlsSocket, createProviderTlsSocket, forwardRequest } from '
 import { type ResponseWriter } from './proxy-handler.js'
 import { registerProvider, setActiveProvider, shutdownActiveProvider } from './tls-provider.js'
 import { utlsProvider } from './tls-provider-utls.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+function getUtlsBinaryPath(): string {
+  const platform = process.platform === 'darwin' ? 'darwin' : 'linux'
+  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64'
+  return path.join(__dirname, 'tls-binaries', `tls-proxy-${platform}-${arch}`)
+}
+
+const utlsBinaryExists = fs.existsSync(getUtlsBinaryPath())
 
 // Mock the store module
 vi.mock('./flow-store.js', () => ({
@@ -80,7 +93,8 @@ const implementations: TlsImplementation[] = [
     setup: async () => {},
     teardown: async () => {}
   },
-  {
+  // Only include uTLS tests if the binary exists
+  ...(utlsBinaryExists ? [{
     name: 'uTLS Provider',
     createSocket: createProviderTlsSocket,
     setup: async () => {
@@ -90,7 +104,7 @@ const implementations: TlsImplementation[] = [
     teardown: async () => {
       await shutdownActiveProvider()
     }
-  }
+  }] : [])
 ]
 
 // Helper to create a mock writer that captures output
