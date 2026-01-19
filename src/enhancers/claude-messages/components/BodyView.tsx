@@ -2,14 +2,18 @@ import { CollapsibleSection, sectionTypeColors } from '@/components'
 import { isJson, formatJson, highlightJson } from '@/lib/json-highlight'
 import { useMemo } from 'react'
 
+// 10MB size limit for displaying body content
+const MAX_BODY_SIZE = 10 * 1024 * 1024
+
 interface BodyViewProps {
   body: string
   defaultExpanded?: boolean
 }
 
 export function BodyView({ body, defaultExpanded = true }: BodyViewProps) {
-  const formattedBody = useMemo(() => formatJson(body), [body])
-  const isJsonBody = useMemo(() => isJson(body), [body])
+  const isBodyTooLarge = body.length > MAX_BODY_SIZE
+  const formattedBody = useMemo(() => isBodyTooLarge ? '' : formatJson(body), [body, isBodyTooLarge])
+  const isJsonBody = useMemo(() => isBodyTooLarge ? false : isJson(body), [body, isBodyTooLarge])
   
   return (
     <CollapsibleSection
@@ -17,9 +21,13 @@ export function BodyView({ body, defaultExpanded = true }: BodyViewProps) {
       color={sectionTypeColors.body}
       defaultExpanded={defaultExpanded}
     >
-      <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto">
-        {isJsonBody ? highlightJson(formattedBody) : <span className="text-foreground">{formattedBody}</span>}
-      </pre>
+      {isBodyTooLarge ? (
+        <span className="text-xs text-muted-foreground italic">Body too large to display</span>
+      ) : (
+        <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto">
+          {isJsonBody ? highlightJson(formattedBody) : <span className="text-foreground">{formattedBody}</span>}
+        </pre>
+      )}
     </CollapsibleSection>
   )
 }

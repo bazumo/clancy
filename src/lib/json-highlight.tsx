@@ -23,11 +23,20 @@ export function formatJson(str: string): string {
   }
 }
 
+// 1MB size limit for syntax highlighting
+const MAX_HIGHLIGHT_SIZE = 1024 * 1024
+
 /**
  * Lightweight JSON syntax highlighter
  * Returns React nodes with appropriate color classes
+ * Skips highlighting for JSON larger than 1MB for performance
  */
 export function highlightJson(json: string): ReactNode[] {
+  // Skip highlighting for large JSON to avoid performance issues
+  if (json.length > MAX_HIGHLIGHT_SIZE) {
+    return [json]
+  }
+
   const result: ReactNode[] = []
   let i = 0
   let key = 0
