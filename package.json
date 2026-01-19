@@ -1,6 +1,6 @@
 {
   "name": "clancy-proxy",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
   "type": "module",
   "author": "bazumo",

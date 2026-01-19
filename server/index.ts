@@ -73,7 +73,7 @@ const server = http.createServer(app)
 store.initWebSocket(server)
 
 // Serve static files
-const distPath = path.join(__dirname, '..', 'dist')
+const distPath = path.join(__dirname, '..', '..', 'dist')
 app.use(express.static(distPath))
 
 let requestCount = 0
@@ -159,7 +159,11 @@ app.post('/api/tls/fingerprint/:fingerprint', express.json(), (req, res) => {
 app.use((req, res) => {
   const targetUrl = req.url
   if (!targetUrl.startsWith('http://')) {
-    res.sendFile(path.join(distPath, 'index.html'))
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+      if (err) {
+        res.status(404).end()
+      }
+    })
     return
   }
 
