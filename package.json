@@ -36,7 +36,8 @@
     "dist/",
     "dist-server/",
     "server/tls-binaries/",
-    "readme.md"
+    "readme.md",
+    "screenshot.png"
   ],
   "scripts": {
     "dev": "vite",

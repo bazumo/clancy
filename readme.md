@@ -31,8 +31,6 @@ npx clancy-proxy
 
 ## Quick Start (from source)
 
-
-
 ```bash
 # Install dependencies
 npm install
@@ -45,9 +43,6 @@ The server will start on `http://localhost:9090` with the web dashboard.
 
 ## Usage
 
-### Basic Usage
-
-
 ### With Claude Code
 
 ```bash
@@ -57,9 +52,13 @@ NODE_TLS_REJECT_UNAUTHORIZED=0 \
 claude
 ```
 
-### With open code:
-```
-HTTP_PROXY=http://localhost:9090 HTTPS_PROXY=http://localhost:9090 NODE_TLS_REJECT_UNAUTHORIZED=0 opencode
+### With OpenCode
+
+```bash
+HTTP_PROXY=http://localhost:9090 \
+HTTPS_PROXY=http://localhost:9090 \
+NODE_TLS_REJECT_UNAUTHORIZED=0 \
+opencode
 ```
 
 Other applications might work as well.
@@ -96,7 +95,7 @@ When using `--tls-provider utls`, you can specify a browser fingerprint:
 
 Example:
 ```bash
-npm start -- --tls-provider utls --tls-fingerprint chrome120
+clancy --tls-provider utls --tls-fingerprint chrome120
 ```
 
 ## Development
@@ -154,22 +153,14 @@ If you see certificate errors, ensure you're setting `NODE_TLS_REJECT_UNAUTHORIZ
 
 Change the port with `-p`:
 ```bash
-npm start -- -p 8080
+clancy -p 8080
 ```
 
 ### TLS fingerprint detection
 
-Some services like Claude Desktop detect and block Node.js TLS fingerprints. Use uTLS provider:
+Some services detect and block Node.js TLS fingerprints. Use the uTLS provider:
 ```bash
-npm start -- --tls-provider utls --tls-fingerprint chrome120
-```
-
-### Go binary not found
-
-The uTLS provider requires a pre-built Go binary. Build it:
-```bash
-cd server/tls-go
-go build -o ../tls-proxy
+clancy --tls-provider utls --tls-fingerprint chrome120
 ```
 
 
