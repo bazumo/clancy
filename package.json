@@ -49,7 +49,6 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "npm run build && tsx server/index.ts",
-    "server": "tsx server/index.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "test:unit": "vitest run --exclude='**/*e2e*.test.ts'",

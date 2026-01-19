@@ -6,12 +6,29 @@ HTTP/HTTPS proxy with real-time monitoring for Agent traffic. Designed for debug
 
 - **Real-time monitoring** - WebSocket-based live updates as requests flow through
 - **HTTP/HTTPS proxy** - Full support for both protocols with TLS interception
-- **TLS fingerprinting** - Spoof browser TLS fingerprints using uTLS (Go-based)
+- **TLS fingerprinting** - Spoof browser TLS fingerprints using uTLS
 - **SSE parsing** - Automatic parsing and display of Server-Sent Events
 - **Request/Response inspection** - View headers, bodies, timing, and more
-- **Clean dashboard** - Minimalistic React-based web UI
+- **Enhanced view for agent traffic** - 
 
-## Quick Start
+It has been tested with:
+- Claude code
+- Claude code (Bedrock)
+- OpenCode (Bedrock)
+
+
+## Quick Start (npx)
+
+
+Run it with npx
+
+```bash
+TODO still nedd to publish this
+```
+
+## Quick Start (from source)
+
+
 
 ```bash
 # Install dependencies
@@ -87,7 +104,7 @@ npm start -- --tls-provider utls --tls-fingerprint chrome120
 npm run dev
 
 # Run just the proxy server (watches for changes)
-npm run server
+npm run dev:server
 
 # Run tests
 npm test
@@ -140,7 +157,7 @@ npm start -- -p 8080
 
 ### TLS fingerprint detection
 
-Some services detect and block Node.js TLS fingerprints. Use uTLS provider:
+Some services like Claude Desktop detect and block Node.js TLS fingerprints. Use uTLS provider:
 ```bash
 npm start -- --tls-provider utls --tls-fingerprint chrome120
 ```
@@ -153,27 +170,6 @@ cd server/tls-go
 go build -o ../tls-proxy
 ```
 
-## Architecture
 
-```
-src/               # React frontend
-  components/      # UI components
-  contexts/        # React contexts
-  enhancers/       # Protocol-specific enhancers (Claude messages)
-  hooks/           # Custom React hooks
-
-server/            # Express backend
-  index.ts         # Entry point, CLI handling
-  proxy-handler.ts # Request/response handling
-  tls-sockets.ts   # TLS connection handling
-  tls-provider*.ts # TLS provider implementations
-  flow-store.ts    # In-memory storage + WebSocket
-  parsers/         # SSE and other protocol parsers
-
-shared/            # Shared TypeScript types
-```
-
-## Requirements
-
-- Node.js >= 20.0.0
-- Go (optional, for uTLS fingerprinting)
+> ⚠️ **Warning:** Only use this proxy in trusted networks!  
+> Disabling cert checking exposes you to man-in-the-middle (MITM) attacks between the application and the proxy, which in case of agents means RCE on your machine. Only proxy over a trusted network or don't disable cert checking and trust the cert generated in `certs`.

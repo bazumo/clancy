@@ -4,6 +4,7 @@ import * as Tabs from '@radix-ui/react-tabs'
 import Markdown from 'react-markdown'
 import type { ToolUnion } from '../types'
 import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CacheControlBadge } from '../../shared'
 
 interface ToolsViewProps {
   tools: ToolUnion[]
@@ -270,10 +271,10 @@ export function ToolsView({ tools, defaultExpanded = true }: ToolsViewProps) {
               {/* Cache control indicator */}
               {'cache_control' in activeTool && activeTool.cache_control && (
                 <div className="mt-4 pt-3 border-t border-border">
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
-                    cache_control: {activeTool.cache_control.type}
-                    {activeTool.cache_control.ttl && ` (${activeTool.cache_control.ttl})`}
-                  </span>
+                  <CacheControlBadge 
+                    type={activeTool.cache_control.type}
+                    ttl={'ttl' in activeTool.cache_control ? activeTool.cache_control.ttl : undefined}
+                  />
                 </div>
               )}
             </Tabs.Content>

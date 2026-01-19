@@ -137,9 +137,10 @@ export function handleProxyResponse(
     }
 
     if (parser) {
-      // Decompress for event parsing if needed
-      let decompressedBody = rawBody
+      // For compressed streams, we need to decompress and parse all events now
+      // For uncompressed streams, events were already parsed in real-time in the 'data' handler
       if (contentEncoding && rawBody.length > 0) {
+        let decompressedBody = rawBody
         try {
           const decompressed = decompressBody(rawBody, contentEncoding)
           decompressedBody = Buffer.from(decompressed, 'utf-8')
@@ -147,17 +148,18 @@ export function handleProxyResponse(
           console.error(`[RESPONSE] Decompression failed for flow ${id}:`, err)
           decompressedBody = rawBody
         }
-      }
 
-      // Parse events from decompressed data
-      for (const event of parser.processChunk(decompressedBody)) {
-        if (verbose) {
-          console.log(`[Stream] Parsed event: ${event.eventId}`)
+        // Parse events from decompressed data (compressed streams only)
+        for (const event of parser.processChunk(decompressedBody)) {
+          if (verbose) {
+            console.log(`[Stream] Parsed event (buffered): ${event.eventId}`)
+          }
+          store.addEvent(id, event)
         }
-        store.addEvent(id, event)
       }
 
-      // Flush remaining events
+      // Flush remaining events (for both compressed and uncompressed streams)
+      // This handles any incomplete events that were buffered in the parser
       for (const event of parser.flush()) {
         if (verbose) {
           console.log(`[Stream] Flushing event: ${event.eventId}`)
@@ -177,14 +179,16 @@ export function handleProxyResponse(
       // For compressed SSE, send headers (with encoding removed) and decompressed body
       // For uncompressed SSE, data was already streamed - don't write again
       if (contentEncoding) {
+        const decompressedBody = decompressBody(rawBody, contentEncoding)
+        const decompressedBuf = Buffer.from(decompressedBody, 'utf-8')
         const headersToSend = { ...proxyRes.headers }
         delete headersToSend['content-encoding']
         delete headersToSend['content-length']
         delete headersToSend['transfer-encoding']
         // Add Content-Length so client knows when response is complete
-        headersToSend['content-length'] = String(decompressedBody.length)
+        headersToSend['content-length'] = String(decompressedBuf.length)
         writer.writeHead(proxyRes.statusCode || 500, headersToSend)
-        writer.write(decompressedBody)
+        writer.write(decompressedBuf)
       }
       // Note: For uncompressed SSE, data was already written in the 'data' handler
     } else {
@@ -229,10 +233,19 @@ export function handleProxyResponse(
     responseChunks.push(chunk)
 
     // For streaming responses (SSE) WITHOUT compression, write immediately to client
+    // and parse events in real-time to capture accurate timestamps
     // For compressed SSE, we must buffer until end because brotli/gzip can't be
     // decompressed chunk-by-chunk
     if (parser && !contentEncoding) {
       writer.write(chunk)
+      
+      // Parse events in real-time for accurate timestamps
+      for (const event of parser.processChunk(chunk)) {
+        if (verbose) {
+          console.log(`[Stream] Parsed event (realtime): ${event.eventId}`)
+        }
+        store.addEvent(id, event)
+      }
       return
     }
 

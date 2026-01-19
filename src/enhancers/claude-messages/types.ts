@@ -71,7 +71,12 @@ export interface CacheControlEphemeral {
   ttl?: '5m' | '1h'
 }
 
-export type CacheControl = CacheControlEphemeral
+/** Bedrock-style cache control with 'default' type */
+export interface CacheControlDefault {
+  type: 'default'
+}
+
+export type CacheControl = CacheControlEphemeral | CacheControlDefault
 
 // ============================================================================
 // Citation Types (Response)
