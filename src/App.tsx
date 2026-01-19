@@ -113,7 +113,7 @@ function AppContent() {
               <div className="max-w-lg space-y-4 p-8 text-muted-foreground">
                 <h2 className="text-lg font-medium mb-4">Usage</h2>
                 <div className="space-y-2">
-                  <h3 className="text-xs font-medium">Claude Code</h3>
+                  <h3 className="text-xs font-medium">Claude Code (or other node.js/bun based app)</h3>
                   <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-x-auto"><code>{`HTTP_PROXY=http://localhost:9090 \\
 HTTPS_PROXY=http://localhost:9090 \\
 NODE_TLS_REJECT_UNAUTHORIZED=0 \\
@@ -125,13 +125,6 @@ claude`}</code></pre>
                   <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-x-auto"><code>{`curl -x http://localhost:9090 -k https://api.anthropic.com/v1/messages`}</code></pre>
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="text-xs font-medium">Other</h3>
-                  <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-x-auto"><code>{`HTTP_PROXY=http://localhost:9090 \\
-HTTPS_PROXY=http://localhost:9090 \\
-NODE_TLS_REJECT_UNAUTHORIZED=0 \\
-your-application`}</code></pre>
-                </div>
               </div>
             </div>
           ) : (
