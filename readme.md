@@ -129,31 +129,6 @@ npm run test:run
 npm run lint
 ```
 
-## API Endpoints
-
-The proxy server exposes a REST API for accessing captured traffic:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/flows` | GET | Get all captured flows |
-| `/api/flows` | DELETE | Clear all captured flows |
-| `/api/flows/:id` | GET | Get a specific flow |
-| `/api/flows/:id/events` | GET | Get SSE events for a flow |
-| `/api/flows/:id/raw` | GET | Get raw HTTP request/response |
-
-## WebSocket
-
-Connect to `ws://localhost:9090/ws` for real-time flow updates:
-
-```javascript
-const ws = new WebSocket('ws://localhost:9090/ws')
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data)
-  // data.type can be: 'init', 'flow', 'event', 'clear'
-  console.log(data)
-}
-```
 
 ## Troubleshooting
 
