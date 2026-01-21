@@ -44,13 +44,12 @@ export class Pipeline {
     this.activeTransforms = this.transforms.filter(t => t.shouldActivate(meta))
     this.activeTaps = this.taps.filter(t => t.shouldActivate(meta))
 
-    // Determine if we need to buffer
-    // 1. Decompression transforms need full buffering because brotli/gzip can't be decompressed chunk-by-chunk
-    // 2. Chunked responses through HTTPS tunnels (storeRawHttp=true) need buffering to re-frame as Content-Length
-    //    because we can't re-encode in chunked format when writing raw HTTP to TLS sockets
+    // Determine if we need to buffer (any active transform requires it)
+    // Decompression transforms need full buffering because brotli/gzip
+    // can't be decompressed chunk-by-chunk
     this.needsBuffering = this.activeTransforms.some(t =>
       t.name === 'decompression' && meta.contentEncoding
-    ) || (meta.storeRawHttp && meta.headers['transfer-encoding'] === 'chunked')
+    )
 
     if (meta.verbose) {
       console.log(`[Pipeline] Active transforms: ${this.activeTransforms.map(t => t.name).join(', ') || 'none'}`)

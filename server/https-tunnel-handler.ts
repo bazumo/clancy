@@ -4,7 +4,7 @@ import type { Duplex } from 'stream'
 import type { Flow } from '../shared/types.js'
 import { generateId } from './utils.js'
 import { forwardRequest } from './tls-sockets.js'
-import { createTlsWriter } from './proxy-handler.js'
+import { createResponseWriter } from './proxy-handler.js'
 import * as store from './flow-store.js'
 
 /**
@@ -53,9 +53,7 @@ export function createTunnelHttpParser(
       store.initRawHttp(id, rawRequest)
       store.saveFlow(flow)
 
-      // Determine if connection should be closed after response
-      const closeOnEnd = (req.headers['connection'] || '').toLowerCase() === 'close'
-      const writer = createTlsWriter(tlsSocket, closeOnEnd)
+      const writer = createResponseWriter(res)
 
       // Forward to upstream
       if (upstreamSocket) {

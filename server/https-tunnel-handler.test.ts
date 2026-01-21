@@ -30,7 +30,7 @@ vi.mock('./tls-sockets.js', () => ({
 
 // Mock proxy-handler
 vi.mock('./proxy-handler.js', () => ({
-  createTlsWriter: vi.fn(() => ({
+  createResponseWriter: vi.fn(() => ({
     writeHead: vi.fn(),
     write: vi.fn(),
     end: vi.fn()

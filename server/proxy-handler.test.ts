@@ -5,10 +5,10 @@ import type { Flow } from '../shared/types.js'
 import {
   handleProxyResponse,
   handleProxyError,
-  createExpressWriter,
-  buildResponseHeader,
+  createResponseWriter,
   type ResponseWriter,
 } from './proxy-handler.js'
+import { buildResponseHeader } from './pipeline/taps/raw-http-storage.js'
 
 // Mock the store
 vi.mock('./flow-store.js', () => ({
@@ -484,7 +484,7 @@ describe('Proxy Handler', () => {
     })
   })
 
-  describe('createExpressWriter', () => {
+  describe('createResponseWriter', () => {
     it('should create writer from express response', () => {
       const mockRes = {
         writeHead: vi.fn(),
@@ -492,7 +492,7 @@ describe('Proxy Handler', () => {
         end: vi.fn()
       }
 
-      const writer = createExpressWriter(mockRes as any)
+      const writer = createResponseWriter(mockRes as any)
 
       writer.writeHead(200, {})
       expect(mockRes.writeHead).toHaveBeenCalledWith(200, {})

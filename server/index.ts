@@ -10,7 +10,7 @@ import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
 import { handleUiWebSocketUpgrade } from './flow-store.js'
-import { handleProxyError, handleProxyResponse, createExpressWriter } from './proxy-handler.js'
+import { handleProxyError, handleProxyResponse, createResponseWriter } from './proxy-handler.js'
 import {
   registerProvider,
   setActiveProvider,
@@ -203,7 +203,7 @@ app.use((req, res) => {
       headers: { ...req.headers, host: parsedUrl.host }
     }
 
-    const writer = createExpressWriter(res)
+    const writer = createResponseWriter(res)
 
     const proxyReq = http.request(options, (proxyRes) => {
       handleProxyResponse(proxyRes, { flow, startTime, writer })
