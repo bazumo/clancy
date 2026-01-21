@@ -6,6 +6,7 @@ import { generateId } from './utils.js'
 import { forwardRequest } from './tls-sockets.js'
 import { createResponseWriter } from './proxy-handler.js'
 import * as store from './flow-store.js'
+import { applyRequestModifiers } from './modifiers/apply.js'
 
 /**
  * Creates an HTTP server that parses requests from a TLS socket.
@@ -21,7 +22,7 @@ export function createTunnelHttpParser(
     // Extract request body
     const bodyChunks: Buffer[] = []
     req.on('data', (chunk) => bodyChunks.push(chunk))
-    req.on('end', () => {
+    req.on('end', async () => {
       const body = bodyChunks.length > 0
         ? Buffer.concat(bodyChunks).toString('utf-8')
         : undefined
@@ -53,6 +54,16 @@ export function createTunnelHttpParser(
       store.initRawHttp(id, rawRequest)
       store.saveFlow(flow)
 
+      // Apply request modifiers
+      const modifiedRequest = await applyRequestModifiers(flow, {
+        method: req.method!,
+        url,
+        path: req.url!,
+        host,
+        headers: req.headers as Record<string, string>,
+        body: body || undefined
+      })
+
       const writer = createResponseWriter(res)
 
       // Forward to upstream
@@ -60,10 +71,10 @@ export function createTunnelHttpParser(
         forwardRequest(
           host,
           port,
-          req.method!,
-          req.url!,
-          req.headers as Record<string, string>,
-          body,
+          modifiedRequest.method,
+          modifiedRequest.path,
+          modifiedRequest.headers,
+          modifiedRequest.body,
           flow,
           startTime,
           writer,

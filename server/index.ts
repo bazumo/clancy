@@ -22,6 +22,8 @@ import {
 import { utlsProvider } from './tls-provider-utls.js'
 import { createNativeTlsSocket, createProviderTlsSocket } from './tls-sockets.js'
 import { createTunnelHttpParser, attachSocketToParser } from './https-tunnel-handler.js'
+import './modifiers/index.js'
+import { applyRequestModifiers } from './modifiers/apply.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -175,7 +177,7 @@ app.use((req, res) => {
   const requestChunks: Buffer[] = []
   req.on('data', (chunk) => requestChunks.push(chunk))
 
-  req.on('end', () => {
+  req.on('end', async () => {
     const requestBody = Buffer.concat(requestChunks).toString('utf-8')
 
     const flow: Flow = {
@@ -195,12 +197,22 @@ app.use((req, res) => {
     store.saveFlow(flow)
     requestCount++
 
+    // Apply request modifiers
+    const modifiedRequest = await applyRequestModifiers(flow, {
+      method: req.method || 'GET',
+      url: targetUrl,
+      path: parsedUrl.pathname + parsedUrl.search,
+      host: parsedUrl.host,
+      headers: req.headers as Record<string, string>,
+      body: requestBody || undefined
+    })
+
     const options: http.RequestOptions = {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || 80,
-      path: parsedUrl.pathname + parsedUrl.search,
-      method: req.method,
-      headers: { ...req.headers, host: parsedUrl.host }
+      path: modifiedRequest.path,
+      method: modifiedRequest.method,
+      headers: { ...modifiedRequest.headers, host: parsedUrl.host }
     }
 
     const writer = createResponseWriter(res)
@@ -213,8 +225,8 @@ app.use((req, res) => {
       handleProxyError(err, flow, startTime, writer)
     })
 
-    if (requestBody) {
-      proxyReq.write(requestBody)
+    if (modifiedRequest.body) {
+      proxyReq.write(modifiedRequest.body)
     }
     proxyReq.end()
   })

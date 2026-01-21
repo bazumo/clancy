@@ -2,7 +2,7 @@ import http from 'http'
 import type { Flow } from '../../shared/types.js'
 import type { ResponseMeta, TransformStage, TapStage, StreamSink } from './types.js'
 import { Pipeline } from './pipeline.js'
-import { DecompressionStage } from './transforms/index.js'
+import { DecompressionStage, ResponseModifierStage } from './transforms/index.js'
 import { EventParserTap, FlowStorageTap, RawHttpStorageTap } from './taps/index.js'
 import { ClientSink, type ResponseWriter } from './sinks/index.js'
 import { isStreamingContentType } from '../parsers/index.js'
@@ -59,7 +59,10 @@ export function createProxyPipeline(
   additionalSinks?: StreamSink[]
 } {
   return {
-    transforms: [new DecompressionStage()],
+    transforms: [
+      new DecompressionStage(),
+      new ResponseModifierStage()
+    ],
     taps: [
       new EventParserTap(),
       new FlowStorageTap(),
