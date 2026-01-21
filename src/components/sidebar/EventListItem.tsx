@@ -10,45 +10,90 @@ interface EventListItemProps {
   onSelect: () => void
 }
 
+// Get event type from data
+function getEventType(data: string): string {
+  try {
+    const parsed = JSON.parse(data)
+    return parsed.type || 'message'
+  } catch {
+    return 'message'
+  }
+}
+
+// Get preview text
+function getPreview(data: string): string {
+  try {
+    const parsed = JSON.parse(data)
+
+    // For content_block_delta, show the text/thinking preview
+    if (parsed.type === 'content_block_delta' && parsed.delta) {
+      if (parsed.delta.type === 'text_delta' && parsed.delta.text) {
+        return parsed.delta.text.slice(0, 40)
+      }
+      if (parsed.delta.type === 'thinking_delta' && parsed.delta.thinking) {
+        return `[thinking] ${parsed.delta.thinking.slice(0, 30)}`
+      }
+    }
+
+    // For message_start, show model
+    if (parsed.type === 'message_start' && parsed.message?.model) {
+      return parsed.message.model
+    }
+
+    // For content_block_start, show block type
+    if (parsed.type === 'content_block_start' && parsed.content_block?.type) {
+      return parsed.content_block.type
+    }
+
+    return data.slice(0, 40)
+  } catch {
+    return data.slice(0, 40)
+  }
+}
+
 export function EventListItem({
-  flow,
   event,
   isFlowSelected,
   isEventSelected,
   onSelect,
 }: EventListItemProps) {
-  const eventType = event.event || 'message'
-
-  // Try to show a meaningful preview of the event data
-  const preview = (() => {
-    try {
-      const parsed = JSON.parse(event.data)
-      if (parsed.type) return `type: ${parsed.type}`
-      return event.data.slice(0, 50) + (event.data.length > 50 ? '...' : '')
-    } catch {
-      return event.data.slice(0, 50) + (event.data.length > 50 ? '...' : '')
-    }
-  })()
+  const eventType = event.event || getEventType(event.data)
+  const preview = getPreview(event.data)
 
   return (
     <button
       onClick={onSelect}
       className={cn(
-        'w-80 text-left px-3 py-2 hover:bg-cyan-500/10 transition-colors overflow-hidden border-l-4 border-cyan-500/50',
-        isFlowSelected && 'bg-cyan-500/10',
-        isEventSelected && 'bg-cyan-500/20'
+        'w-full text-left px-3 py-1 hover:bg-cyan-500/10 transition-colors overflow-hidden border-l-2 border-cyan-500/30 h-[32px] flex items-center gap-2',
+        'font-mono text-xs',
+        isFlowSelected && 'bg-cyan-500/5',
+        isEventSelected && 'bg-cyan-500/15'
       )}
     >
-      <div className="flex items-center gap-2 mb-1 w-full">
-        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 shrink-0">
-          {eventType}
+      {/* Dot indicator */}
+      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+
+      {/* Event type */}
+      <span className="text-cyan-400 shrink-0 min-w-[100px] truncate">
+        {eventType}
+      </span>
+
+      {/* Sequence number */}
+      {event.sequence !== undefined && (
+        <span className="text-muted-foreground/40 shrink-0 text-[10px] w-[3ch] text-right tabular-nums">
+          #{event.sequence}
         </span>
-        <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">{flow.host}</span>
-        <span className="text-xs text-muted-foreground/60 shrink-0">
-          {formatTime(event.timestamp)}
-        </span>
-      </div>
-      <div className="font-mono text-xs text-muted-foreground truncate w-full">{preview}</div>
+      )}
+
+      {/* Preview */}
+      <span className="text-muted-foreground/60 truncate flex-1 text-[10px]">
+        {preview}
+      </span>
+
+      {/* Time */}
+      <span className="text-muted-foreground/40 shrink-0 text-[10px] tabular-nums">
+        {formatTime(event.timestamp).split(' ')[0]}
+      </span>
     </button>
   )
 }

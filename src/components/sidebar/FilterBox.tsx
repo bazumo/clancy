@@ -27,11 +27,11 @@ export function FilterBox({ uniqueEventTypes, uniqueTags }: FilterBoxProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="border-b border-border shrink-0">
-      <div className="flex items-center">
+    <div className="border-b border-border shrink-0 bg-background">
+      <div className="flex items-center bg-background">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex-1 px-3 h-9 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+          className="flex-1 px-3 h-9 flex items-center gap-2 hover:bg-muted/30 transition-colors"
         >
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Filter

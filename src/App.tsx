@@ -4,8 +4,7 @@ import { FlowProvider, useFlowContext, SelectionProvider, useSelectionContext } 
 import { useFilters } from '@/hooks'
 import { Header } from '@/components/layout/Header'
 import { FilterBox } from '@/components/sidebar/FilterBox'
-import { FlowListItem } from '@/components/sidebar/FlowListItem'
-import { EventListItem } from '@/components/sidebar/EventListItem'
+import { VirtualizedFlowList } from '@/components/sidebar/VirtualizedFlowList'
 import { RequestSection } from '@/components/detail/RequestSection'
 import { ResponseSection } from '@/components/detail/ResponseSection'
 
@@ -53,37 +52,15 @@ function AppContent() {
         <aside className="w-80 border-r border-border shrink-0 flex flex-col min-h-0">
           <FilterBox uniqueEventTypes={uniqueEventTypes} uniqueTags={uniqueTags} />
 
-          <ScrollArea className="flex-1 min-h-0">
-            {filteredItems.length === 0 ? (
-              <div className="flex items-center justify-center h-32 text-muted-foreground text-xs">
-                Waiting for requests...
-              </div>
-            ) : (
-              <div className="divide-y divide-border w-80">
-                {filteredItems.map((item) =>
-                  item.type === 'flow' ? (
-                    <FlowListItem
-                      key={`flow-${item.flow.id}`}
-                      flow={item.flow}
-                      isSelected={selectedFlowId === item.flow.id}
-                      eventCount={events.get(item.flow.id)?.length || 0}
-                      tags={flowTagsMap.get(item.flow.id) || []}
-                      onSelect={() => selectFlow(item.flow.id)}
-                    />
-                  ) : (
-                    <EventListItem
-                      key={`event-${item.event.eventId}`}
-                      flow={item.flow}
-                      event={item.event}
-                      isFlowSelected={selectedFlowId === item.flow.id}
-                      isEventSelected={selectedEventId === item.event.eventId}
-                      onSelect={() => selectEvent(item.flow.id, item.event.eventId)}
-                    />
-                  )
-                )}
-              </div>
-            )}
-          </ScrollArea>
+          <VirtualizedFlowList
+            items={filteredItems}
+            selectedFlowId={selectedFlowId}
+            selectedEventId={selectedEventId}
+            flowTagsMap={flowTagsMap}
+            events={events}
+            onSelectFlow={selectFlow}
+            onSelectEvent={selectEvent}
+          />
         </aside>
 
         {/* Main Content */}

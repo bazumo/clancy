@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { MethodBadge, StatusBadge, EventCountBadge, TagList } from '@/components'
+import { MethodBadge, StatusBadge, EventCountBadge } from '@/components'
 import type { Flow } from '../../../shared/types'
 import { formatTime } from '@/lib/format'
 
@@ -11,12 +11,12 @@ interface FlowListItemProps {
   onSelect: () => void
 }
 
-export function FlowListItem({ flow, isSelected, eventCount, tags, onSelect }: FlowListItemProps) {
+export function FlowListItem({ flow, isSelected, eventCount, onSelect }: FlowListItemProps) { // eslint-disable-line @typescript-eslint/no-unused-vars
   return (
     <button
       onClick={onSelect}
       className={cn(
-        'w-80 text-left px-3 py-2.5 hover:bg-muted/50 transition-colors overflow-hidden',
+        'w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors overflow-hidden h-[60px] flex flex-col justify-center',
         isSelected && 'bg-muted'
       )}
     >
@@ -34,7 +34,6 @@ export function FlowListItem({ flow, isSelected, eventCount, tags, onSelect }: F
           {formatTime(flow.timestamp)}
         </span>
       </div>
-      <TagList tags={tags} className="mt-1 flex-wrap" />
     </button>
   )
 }
