@@ -1,4 +1,4 @@
-module github.com/claudio/tls-proxy
+module github.com/bazumo/clancy/server/tls-go
 
 go 1.21
 

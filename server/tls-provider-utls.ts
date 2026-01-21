@@ -48,7 +48,7 @@ export class UtlsProvider implements TLSProvider {
     if (this.ready) return
 
     const binaryPath = getBinaryPath()
-    const socketPath = `/tmp/claudio-tls-${process.pid}.sock`
+    const socketPath = `/tmp/clancy-tls-${process.pid}.sock`
 
     return new Promise((resolve, reject) => {
       const proc = spawn(binaryPath, [socketPath], {

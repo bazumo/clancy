@@ -48,7 +48,7 @@ var fingerprints = map[string]*tls.ClientHelloID{
 
 func main() {
 	// Get socket path from args or use default
-	socketPath := "/tmp/claudio-tls.sock"
+	socketPath := "/tmp/clancy-tls.sock"
 	if len(os.Args) > 1 {
 		socketPath = os.Args[1]
 	}
