@@ -12,7 +12,7 @@ export interface StreamParser {
 
 /**
  * Wraps SSEStreamParser to accept Buffer
- * Note: Decompression is handled by the caller (proxy-handler.ts) before passing to this adapter
+ * Note: Decompression is handled by the pipeline's DecompressionStage before data reaches this adapter
  */
 class SSEParserAdapter implements StreamParser {
   private parser: SSEStreamParser
@@ -56,14 +56,7 @@ export function createStreamParser(
  */
 export function isStreamingContentType(contentType: string | undefined): boolean {
   if (!contentType) return false
-  return contentType.includes('text/event-stream') || 
+  return contentType.includes('text/event-stream') ||
          contentType.includes('application/vnd.amazon.eventstream')
-}
-
-/**
- * Check if content type is Bedrock event stream (for special body handling)
- */
-export function isBedrockStream(contentType: string | undefined): boolean {
-  return contentType?.includes('application/vnd.amazon.eventstream') ?? false
 }
 

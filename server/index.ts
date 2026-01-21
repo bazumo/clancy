@@ -10,7 +10,7 @@ import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
 import { handleUiWebSocketUpgrade } from './flow-store.js'
-import { handleProxyError, handleProxyResponse, createExpressWriter, createTlsWriter } from './proxy-handler.js'
+import { handleProxyError, handleProxyResponse, createExpressWriter } from './proxy-handler.js'
 import {
   registerProvider,
   setActiveProvider,
@@ -20,7 +20,8 @@ import {
   type TLSFingerprint
 } from './tls-provider.js'
 import { utlsProvider } from './tls-provider-utls.js'
-import { createNativeTlsSocket, createProviderTlsSocket, forwardRequest } from './tls-sockets.js'
+import { createNativeTlsSocket, createProviderTlsSocket } from './tls-sockets.js'
+import { createTunnelHttpParser, attachSocketToParser } from './https-tunnel-handler.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -337,7 +338,7 @@ server.on('upgrade', (req, clientSocket, head) => {
 })
 
 // Handle HTTPS CONNECT with TLS interception
-server.on('connect', (req, clientSocket) => {
+server.on('connect', async (req, clientSocket) => {
   const [host, portStr] = (req.url || '').split(':')
   const port = parseInt(portStr) || 443
 
@@ -355,245 +356,48 @@ server.on('connect', (req, clientSocket) => {
     secureContext: serverCtx
   } as tls.TLSSocketOptions)
 
-  tlsClient.on('secure', () => {
+  tlsClient.on('secure', async () => {
     console.log(`[CONNECT] TLS handshake complete: ${host}:${port}`)
+
+    // Establish upstream connection
+    let upstreamSocket: tls.TLSSocket | import('stream').Duplex | null = null
+    try {
+      const provider = getActiveProvider()
+      if (provider?.isReady()) {
+        upstreamSocket = await createProviderTlsSocket(host, port)
+      } else {
+        upstreamSocket = await createNativeTlsSocket(host, port)
+      }
+      console.log(`[CONNECT] Connected to upstream ${host}:${port}`)
+    } catch (err) {
+      console.error(`[CONNECT] Failed to connect to ${host}:${port}:`, (err as Error).message)
+      tlsClient.destroy()
+      return
+    }
+
+    // Create HTTP parser for this tunnel
+    const httpParser = createTunnelHttpParser(host, port, tlsClient, upstreamSocket)
+
+    // Attach TLS socket to parser - Node will now parse HTTP automatically
+    attachSocketToParser(httpParser, tlsClient)
+
+    // Handle cleanup
+    tlsClient.on('close', () => {
+      console.log(`[CONNECT] Connection closed: ${host}:${port}`)
+      upstreamSocket?.destroy()
+    })
+
+    upstreamSocket.on('close', () => {
+      if (!tlsClient.destroyed) {
+        tlsClient.destroy()
+      }
+    })
   })
 
   tlsClient.on('error', (err) => {
     console.error(`[CONNECT] TLS client error for ${host}:${port}:`, err.message)
     tlsClient.destroy()
   })
-
-  tlsClient.on('close', () => {
-    console.log(`[CONNECT] Connection closed: ${host}:${port}`)
-  })
-
-  // Handle incoming HTTP requests over TLS
-  let buffer = Buffer.alloc(0)
-  let requestsProcessed = 0
-
-  tlsClient.on('data', (chunk) => {
-    console.log(`[CONNECT] Received ${chunk.length} bytes from ${host}:${port}, buffer now ${buffer.length + chunk.length} bytes`)
-    buffer = Buffer.concat([buffer, chunk])
-    processBuffer()
-  })
-
-  function processBuffer() {
-    const headerEnd = buffer.indexOf('\r\n\r\n')
-    if (headerEnd === -1) {
-      console.log(`[CONNECT] Waiting for complete headers from ${host}:${port}, have ${buffer.length} bytes`)
-      return
-    }
-
-    const headerPart = buffer.slice(0, headerEnd).toString('utf-8')
-    const lines = headerPart.split('\r\n')
-    const [method, reqPath] = lines[0].split(' ')
-
-    const headers: Record<string, string> = {}
-    for (let i = 1; i < lines.length; i++) {
-      const colonIdx = lines[i].indexOf(':')
-      if (colonIdx > 0) {
-        const key = lines[i].slice(0, colonIdx).toLowerCase()
-        const value = lines[i].slice(colonIdx + 1).trim()
-        headers[key] = value
-      }
-    }
-
-    const contentLength = parseInt(headers['content-length'] || '0', 10)
-    const totalLength = headerEnd + 4 + contentLength
-
-    if (buffer.length < totalLength) {
-      console.log(`[CONNECT] Waiting for body from ${host}:${port}, need ${totalLength} bytes, have ${buffer.length}`)
-      return
-    }
-
-    const bodyStart = headerEnd + 4
-    const body = contentLength > 0 ? buffer.slice(bodyStart, bodyStart + contentLength).toString('utf-8') : undefined
-
-    // Capture raw HTTP request before removing from buffer
-    const rawRequest = buffer.slice(0, totalLength).toString('utf-8')
-
-    // Remove processed request from buffer
-    buffer = buffer.slice(totalLength)
-    requestsProcessed++
-
-    // Create flow
-    const id = generateId()
-    const startTime = Date.now()
-    const url = `https://${host}${reqPath}`
-
-    console.log(`[CONNECT] Request #${requestsProcessed} on ${host}:${port}: ${method} ${reqPath} (flow: ${id})`)
-
-    const flow: Flow = {
-      id,
-      timestamp: new Date().toISOString(),
-      host,
-      type: 'https',
-      request: {
-        method,
-        url,
-        path: reqPath,
-        headers,
-        body
-      },
-      hasRawHttp: true
-    }
-
-    // Initialize raw HTTP storage for this flow
-    store.initRawHttp(id, rawRequest)
-
-    store.saveFlow(flow)
-    requestCount++
-
-    // Check if this is a WebSocket upgrade request
-    const isWebSocketUpgrade = headers['upgrade']?.toLowerCase() === 'websocket'
-
-    if (isWebSocketUpgrade) {
-      // Handle WebSocket upgrade over HTTPS (wss://)
-      console.log(`[WSS] WebSocket upgrade request: ${host}:${port}${reqPath}`)
-
-      flow.type = 'websocket'
-      store.saveFlow(flow)
-
-      ;(async () => {
-        try {
-          const provider = getActiveProvider()
-          const upstreamSocket = provider?.isReady()
-            ? await createProviderTlsSocket(host, port)
-            : await createNativeTlsSocket(host, port)
-
-          console.log(`[WSS] TLS socket established for ${host}:${port}`)
-
-          // Send the upgrade request to upstream
-          upstreamSocket.write(rawRequest)
-
-          // Handle upgrade response
-          let responseBuffer = Buffer.alloc(0)
-          let upgraded = false
-
-          const onData = (chunk: Buffer) => {
-            if (!upgraded) {
-              responseBuffer = Buffer.concat([responseBuffer, chunk])
-              const headerEnd = responseBuffer.indexOf('\r\n\r\n')
-
-              if (headerEnd !== -1) {
-                const headerPart = responseBuffer.slice(0, headerEnd).toString('utf-8')
-                const statusLine = headerPart.split('\r\n')[0]
-                const statusMatch = statusLine.match(/HTTP\/[\d.]+ (\d+)/)
-                const statusCode = statusMatch ? parseInt(statusMatch[1]) : 0
-
-                if (statusCode === 101) {
-                  console.log(`[WSS] Upgrade successful for ${host}:${port}`)
-                  upgraded = true
-
-                  // Update flow with response
-                  flow.response = {
-                    status: 101,
-                    statusText: 'Switching Protocols',
-                    headers: {}
-                  }
-                  flow.duration = Date.now() - startTime
-                  store.saveFlow(flow)
-
-                  // Remove raw HTTP since this is now a WebSocket
-                  store.deleteRawHttp(id)
-
-                  // Send response to client
-                  tlsClient.write(responseBuffer)
-                  responseBuffer = Buffer.alloc(0)
-
-                  // Remove the data listener and pipe bidirectionally
-                  upstreamSocket.removeListener('data', onData)
-                  upstreamSocket.pipe(tlsClient)
-                  tlsClient.pipe(upstreamSocket)
-                } else {
-                  console.error(`[WSS] Upgrade failed with status ${statusCode}`)
-                  flow.response = {
-                    status: statusCode,
-                    statusText: 'Upgrade Failed',
-                    headers: {},
-                    body: headerPart
-                  }
-                  flow.duration = Date.now() - startTime
-                  store.saveFlow(flow)
-
-                  tlsClient.write(responseBuffer)
-                  tlsClient.end()
-                  upstreamSocket.end()
-                }
-              }
-            }
-          }
-
-          upstreamSocket.on('data', onData)
-
-          upstreamSocket.on('error', (err) => {
-            console.error(`[WSS] Upstream socket error:`, err.message)
-            flow.response = {
-              status: 502,
-              statusText: 'Bad Gateway',
-              headers: {},
-              body: err.message
-            }
-            flow.duration = Date.now() - startTime
-            store.saveFlow(flow)
-            tlsClient.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
-            tlsClient.end()
-          })
-
-          upstreamSocket.on('close', () => {
-            console.log(`[WSS] Upstream socket closed for ${host}:${port}`)
-            if (!tlsClient.destroyed) {
-              tlsClient.end()
-            }
-          })
-
-        } catch (err) {
-          console.error(`[WSS] Failed to connect to ${host}:${port}:`, (err as Error).message)
-          flow.response = {
-            status: 502,
-            statusText: 'Bad Gateway',
-            headers: {},
-            body: (err as Error).message
-          }
-          flow.duration = Date.now() - startTime
-          store.saveFlow(flow)
-          tlsClient.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
-          tlsClient.end()
-        }
-      })()
-
-      // Don't process any more data in this handler - WebSocket takes over
-      return
-    }
-
-    // Forward regular request to actual server
-    // Close connection after response if client requested it
-    const closeOnEnd = headers['connection']?.toLowerCase() === 'close'
-    const writer = createTlsWriter(tlsClient, closeOnEnd)
-    const provider = getActiveProvider()
-
-    console.log(`[CONNECT] Forwarding ${method} ${reqPath} to ${host}:${port} (provider: ${provider?.isReady() ? 'utls' : 'native'})`)
-
-    ;(async () => {
-      try {
-        const socket = provider?.isReady()
-          ? await createProviderTlsSocket(host, port)
-          : await createNativeTlsSocket(host, port)
-        console.log(`[CONNECT] Socket established for ${method} ${reqPath} to ${host}:${port}`)
-        forwardRequest(host, port, method, reqPath, headers, body, flow, startTime, writer, socket)
-      } catch (err) {
-        console.error(`[CONNECT] Failed to connect to ${host}:${port}:`, (err as Error).message)
-        handleProxyError(err as Error, flow, startTime, writer)
-      }
-    })()
-
-    // Process any remaining data in buffer
-    if (buffer.length > 0) {
-      console.log(`[CONNECT] Buffer has ${buffer.length} more bytes, processing next request`)
-      setImmediate(processBuffer)
-    }
-  }
 
   clientSocket.on('error', (err) => {
     console.error('Client socket error:', err.message)

@@ -25,13 +25,9 @@ vi.mock('./flow-store.js', () => ({
   getClientCount: vi.fn(() => 0)
 }))
 
-// Mock decompressBody
+// Mock utils
 vi.mock('./utils.js', () => ({
-  generateId: () => 'test-id',
-  decompressBody: (body: Buffer, encoding?: string) => {
-    if (!encoding) return body.toString('utf-8')
-    return `decompressed[${encoding}]: ${body.toString('utf-8')}`
-  }
+  generateId: () => 'test-id'
 }))
 
 // Mock parsers - return a mock parser for streaming content types
@@ -45,7 +41,9 @@ vi.mock('./parsers/index.js', () => ({
     }
     return null
   }),
-  isBedrockStream: vi.fn((contentType: string) => contentType?.includes('application/vnd.amazon.eventstream') ?? false)
+  isStreamingContentType: vi.fn((contentType: string) =>
+    contentType?.includes('text/event-stream') || contentType?.includes('application/vnd.amazon.eventstream') || false
+  )
 }))
 
 describe('Proxy Handler', () => {
@@ -805,107 +803,5 @@ describe('Proxy Handler', () => {
       })
     })
 
-    it('should set Connection: close header for streaming responses to signal end-of-body', () => {
-      return new Promise<void>((resolve, reject) => {
-        const mockProxyRes = new (class extends http.IncomingMessage {
-          constructor() {
-            super(null as any)
-            this.statusCode = 200
-            this.statusMessage = 'OK'
-            this.headers = {
-              'content-type': 'text/event-stream',
-              'transfer-encoding': 'chunked'
-            }
-          }
-        })()
-
-        const flow: Flow = {
-          id: 'test-connection-close',
-          timestamp: new Date().toISOString(),
-          host: 'api.example.com',
-          type: 'http',
-          request: { method: 'GET', url: 'http://api.example.com/stream', path: '/stream', headers: {} }
-        }
-
-        let capturedHeaders: any = null
-        const testWriter: ResponseWriter = {
-          writeHead: (status, headers) => {
-            capturedHeaders = headers
-          },
-          write: mockWriter.write,
-          end: mockWriter.end
-        }
-
-        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
-
-        // Send data and end
-        mockProxyRes.emit('data', Buffer.from('data: {"msg":"test"}\n\n'))
-        mockProxyRes.emit('end')
-
-        setTimeout(() => {
-          try {
-            // For streaming responses, we should:
-            // 1. Remove transfer-encoding (we forward decoded data, not chunked)
-            // 2. Set Connection: close so client knows when stream ends
-            expect(capturedHeaders).not.toBeNull()
-            expect(capturedHeaders['transfer-encoding']).toBeUndefined()
-            expect(capturedHeaders['connection']).toBe('close')
-            resolve()
-          } catch (err) {
-            reject(err)
-          }
-        }, 50)
-      })
-    })
-
-    it('should set Connection: close header for Bedrock streaming responses', () => {
-      return new Promise<void>((resolve, reject) => {
-        const mockProxyRes = new (class extends http.IncomingMessage {
-          constructor() {
-            super(null as any)
-            this.statusCode = 200
-            this.statusMessage = 'OK'
-            this.headers = {
-              'content-type': 'application/vnd.amazon.eventstream',
-              'transfer-encoding': 'chunked'
-            }
-          }
-        })()
-
-        const flow: Flow = {
-          id: 'test-bedrock-connection-close',
-          timestamp: new Date().toISOString(),
-          host: 'bedrock-runtime.us-east-1.amazonaws.com',
-          type: 'http',
-          request: { method: 'POST', url: 'http://bedrock.aws/invoke', path: '/invoke', headers: {} }
-        }
-
-        let capturedHeaders: any = null
-        const testWriter: ResponseWriter = {
-          writeHead: (status, headers) => {
-            capturedHeaders = headers
-          },
-          write: mockWriter.write,
-          end: mockWriter.end
-        }
-
-        handleProxyResponse(mockProxyRes, { flow, startTime: Date.now(), writer: testWriter })
-
-        // Send data and end
-        mockProxyRes.emit('data', Buffer.from([0x00, 0x00, 0x00, 0x10]))
-        mockProxyRes.emit('end')
-
-        setTimeout(() => {
-          try {
-            expect(capturedHeaders).not.toBeNull()
-            expect(capturedHeaders['transfer-encoding']).toBeUndefined()
-            expect(capturedHeaders['connection']).toBe('close')
-            resolve()
-          } catch (err) {
-            reject(err)
-          }
-        }, 50)
-      })
-    })
   })
 })

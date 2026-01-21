@@ -9,12 +9,36 @@ import net from 'net'
 import tls from 'tls'
 import crypto from 'crypto'
 import { WebSocketServer } from 'ws'
-import { generateCert, startProxy, findFreePorts } from './test-utils/index.js'
+import { spawn, ChildProcess } from 'child_process'
+import forge from 'node-forge'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import type { Flow } from '../shared/types.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // ============================================================================
 // Test Infrastructure
 // ============================================================================
+
+function generateCert() {
+  const pki = forge.pki
+  const keys = pki.rsa.generateKeyPair(2048)
+  const cert = pki.createCertificate()
+  cert.publicKey = keys.publicKey
+  cert.serialNumber = '01'
+  cert.validity.notBefore = new Date()
+  cert.validity.notAfter = new Date()
+  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1)
+  const attrs = [{ name: 'commonName', value: 'localhost' }]
+  cert.setSubject(attrs)
+  cert.setIssuer(attrs)
+  cert.sign(keys.privateKey)
+  return {
+    key: pki.privateKeyToPem(keys.privateKey),
+    cert: pki.certificateToPem(cert)
+  }
+}
 
 function generateWebSocketKey(): string {
   return crypto.randomBytes(16).toString('base64')
@@ -85,14 +109,40 @@ function decodeFrame(data: Buffer): { payload: string; opcode: number } | null {
   return { payload, opcode }
 }
 
-let PROXY_PORT: number
+const PROXY_PORT = 19097
 let httpWsPort: number
 let httpsWsPort: number
 let httpServer: http.Server
 let httpsServer: https.Server
 let httpWss: WebSocketServer
 let httpsWss: WebSocketServer
-let proxyHandle: Awaited<ReturnType<typeof startProxy>> | null = null
+let proxyProcess: ChildProcess | null = null
+
+async function startProxy(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tsxPath = path.join(__dirname, '..', 'node_modules', '.bin', 'tsx')
+    const serverPath = path.join(__dirname, 'index.ts')
+
+    proxyProcess = spawn(tsxPath, [serverPath, '-p', String(PROXY_PORT), '-t', 'native'], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    let started = false
+    proxyProcess.stdout?.on('data', (data) => {
+      const str = data.toString()
+      if (!started && str.includes('Clancy proxy running')) {
+        started = true
+        setTimeout(resolve, 300)
+      }
+    })
+
+    proxyProcess.stderr?.on('data', () => {})
+    setTimeout(() => {
+      if (!started) reject(new Error('Proxy failed to start'))
+    }, 10000)
+  })
+}
 
 // ============================================================================
 // WebSocket Client Helpers
@@ -310,11 +360,6 @@ async function connectWssThroughProxy(targetHost: string, targetPort: number, ta
 
 describe('WebSocket Proxy Tests', () => {
   beforeAll(async () => {
-    // Allocate dynamic ports
-    const ports = await findFreePorts(3)
-    PROXY_PORT = ports[0]
-
-
     // Create HTTP WebSocket server
     httpServer = http.createServer()
     httpWss = new WebSocketServer({ server: httpServer })
@@ -349,16 +394,14 @@ describe('WebSocket Proxy Tests', () => {
     }))
 
     // Start proxy
-    proxyHandle = await startProxy({ port: PROXY_PORT })
+    await startProxy()
   }, 30000)
 
   afterAll(async () => {
-    await proxyHandle?.stop()
+    proxyProcess?.kill('SIGTERM')
     await new Promise(resolve => setTimeout(resolve, 300))
     await new Promise<void>(resolve => httpServer.close(() => resolve()))
     await new Promise<void>(resolve => httpsServer.close(() => resolve()))
-    httpWss?.close()
-    httpsWss?.close()
   })
 
   describe('ws:// (HTTP WebSocket)', () => {

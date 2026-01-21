@@ -114,7 +114,7 @@ export function ResponseGeneralView({ response, defaultExpanded = true }: Respon
       <div className="flex items-start gap-3">
         <span className="text-xs text-muted-foreground w-28 shrink-0">Content Blocks</span>
         <div className="flex flex-wrap gap-1">
-          {response.content.length === 0 ? (
+          {!response.content || response.content.length === 0 ? (
             <span className="text-xs text-muted-foreground italic">empty</span>
           ) : (
             (() => {
