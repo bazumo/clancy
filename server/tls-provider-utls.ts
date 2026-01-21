@@ -181,24 +181,28 @@ export class UtlsProvider implements TLSProvider {
 
   async shutdown(): Promise<void> {
     if (this.process) {
-      this.process.kill('SIGTERM')
-
       // Wait for process to exit
       await new Promise<void>((resolve) => {
-        if (!this.process) {
+        if (!this.process || this.process.killed) {
           resolve()
           return
         }
 
         const timeout = setTimeout(() => {
-          this.process?.kill('SIGKILL')
+          if (this.process && !this.process.killed) {
+            this.process.kill('SIGKILL')
+          }
           resolve()
         }, 5000)
 
-        this.process.on('exit', () => {
+        // Attach exit listener BEFORE sending signal to avoid race condition
+        this.process.once('exit', () => {
           clearTimeout(timeout)
           resolve()
         })
+
+        // Now send the signal
+        this.process.kill('SIGTERM')
       })
 
       this.process = null
