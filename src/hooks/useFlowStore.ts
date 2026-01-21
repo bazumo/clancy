@@ -26,7 +26,7 @@ export function useFlowStore() {
         if (existing) {
           return prev.map((f) => (f.id === flow.id ? flow : f))
         }
-        return [flow, ...prev].slice(0, 200)
+        return [flow, ...prev]
       })
     } else if (data.type === 'event') {
       const { flowId, event } = data as unknown as { flowId: string; event: SSEEvent }
