@@ -1,6 +1,6 @@
 import type { MessageContent, ContentBlock as ContentBlockType } from '../types'
 import { ContentBlock } from './ContentBlock'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components/CollapsibleSection'
 
 interface MessageViewProps {
   message: MessageContent

@@ -1,5 +1,5 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { SidebarItem } from '@/hooks'
+import type { SidebarItem } from '@/hooks/useFilters'
 import type { SSEEvent } from '../../../shared/types'
 
 interface SidebarProps {

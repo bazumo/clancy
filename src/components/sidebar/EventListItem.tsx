@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import type { Flow, SSEEvent } from '../../../shared/types'
 import { formatTime } from '@/lib/format'
@@ -51,7 +52,7 @@ function getPreview(data: string): string {
   }
 }
 
-export function EventListItem({
+export const EventListItem = memo(function EventListItem({
   event,
   isFlowSelected,
   isEventSelected,
@@ -96,5 +97,5 @@ export function EventListItem({
       </span>
     </button>
   )
-}
+})
 

@@ -1,4 +1,4 @@
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components/CollapsibleSection'
 import { isJson, formatJson, highlightJson } from '@/lib/json-highlight'
 import { useMemo } from 'react'
 

@@ -63,17 +63,33 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
     const items: SidebarItem[] = []
     const searchLower = search.toLowerCase()
 
+    // Pre-compute flows matching tag filter for O(1) lookups
+    const matchingFlowIds = new Set<string>()
+    const flowsById = new Map<string, Flow>()
+
+    for (const flow of flows) {
+      flowsById.set(flow.id, flow)
+
+      // Apply tag filter once
+      if (tags.size > 0) {
+        const flowTags = flowTagsMap.get(flow.id) || []
+        const hasMatchingTag = flowTags.some((tag) => tags.has(tag))
+        if (hasMatchingTag) {
+          matchingFlowIds.add(flow.id)
+        }
+      } else {
+        // No tag filter - all flows match
+        matchingFlowIds.add(flow.id)
+      }
+    }
+
     // Add all flows (if not filtering to events only)
     if (itemType !== 'events') {
       for (const flow of flows) {
-        // Apply tag filter
-        if (tags.size > 0) {
-          const flowTags = flowTagsMap.get(flow.id) || []
-          const hasMatchingTag = flowTags.some((tag) => tags.has(tag))
-          if (!hasMatchingTag) continue
-        }
+        // Check tag filter (already computed)
+        if (!matchingFlowIds.has(flow.id)) continue
 
-        // Apply search filter
+        // Apply search filter with early exit
         if (search) {
           const searchable =
             `${flow.host} ${flow.request.path} ${flow.request.method} ${flow.request.url} ${flow.request.body || ''} ${flow.response?.body || ''}`.toLowerCase()
@@ -83,24 +99,20 @@ export function useFilters(flows: Flow[], events: Map<string, SSEEvent[]>) {
       }
     }
 
-    // Add all events (if not filtering to flows only)
+    // Add all events (if not filtering to events only)
     if (itemType !== 'flows') {
       for (const [flowId, flowEvents] of events.entries()) {
-        const flow = flows.find((f) => f.id === flowId)
-        if (flow) {
-          // Apply tag filter to parent flow
-          if (tags.size > 0) {
-            const flowTags = flowTagsMap.get(flow.id) || []
-            const hasMatchingTag = flowTags.some((tag) => tags.has(tag))
-            if (!hasMatchingTag) continue
-          }
+        // O(1) lookup instead of O(n) find
+        if (!matchingFlowIds.has(flowId)) continue
 
+        const flow = flowsById.get(flowId)
+        if (flow) {
           for (const event of flowEvents) {
-            // Apply event type filter
+            // Apply event type filter with early exit
             const evtType = event.event || 'message'
             if (eventType !== 'all' && evtType !== eventType) continue
 
-            // Apply search filter
+            // Apply search filter with early exit
             if (search) {
               const searchable = `${flow.host} ${evtType} ${event.data}`.toLowerCase()
               if (!searchable.includes(searchLower)) continue

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { FlowProvider, useFlowContext, SelectionProvider, useSelectionContext } from '@/contexts'
-import { useFilters } from '@/hooks'
+import { useFilters } from '@/hooks/useFilters'
 import { Header } from '@/components/layout/Header'
 import { FilterBox } from '@/components/sidebar/FilterBox'
 import { VirtualizedFlowList } from '@/components/sidebar/VirtualizedFlowList'

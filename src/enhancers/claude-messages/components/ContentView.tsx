@@ -1,6 +1,6 @@
 import type { ContentBlock as ContentBlockType } from '../types'
 import { ContentBlock } from './ContentBlock'
-import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components/CollapsibleSection'
 
 interface ContentViewProps {
   content: ContentBlockType[]

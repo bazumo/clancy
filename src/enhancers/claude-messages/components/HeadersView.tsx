@@ -1,4 +1,4 @@
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components/CollapsibleSection'
 
 interface HeadersViewProps {
   headers: Record<string, string | string[] | undefined>

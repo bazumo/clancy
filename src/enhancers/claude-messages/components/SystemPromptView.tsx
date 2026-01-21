@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { SystemBlock } from '../types'
-import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components/CollapsibleSection'
 import { CacheBreakpointDivider } from '../../shared'
 
 interface SystemPromptViewProps {

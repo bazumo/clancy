@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components/CollapsibleSection'
 
 interface FetchedRawHttpViewProps {
   flowId: string

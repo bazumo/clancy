@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { SSEEvent, Flow } from '../../../../shared/types'
 import type { EventProps } from '../../types'
-import { CollapsibleSection, sectionTypeColors } from '@/components'
+import { CollapsibleSection, sectionTypeColors } from '@/components/CollapsibleSection'
 
 interface EventItemViewProps {
   flow: Flow

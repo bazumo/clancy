@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { ClaudeMessagesResponse, StopReason } from '../types'
-import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components/CollapsibleSection'
 
 interface ResponseGeneralViewProps {
   response: ClaudeMessagesResponse

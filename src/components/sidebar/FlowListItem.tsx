@@ -1,5 +1,7 @@
+import { memo } from 'react'
 import { cn } from '@/lib/utils'
-import { MethodBadge, StatusBadge, EventCountBadge } from '@/components'
+import { MethodBadge, StatusBadge } from '@/components/StatusBadge'
+import { EventCountBadge } from '@/components/EventCountBadge'
 import type { Flow } from '../../../shared/types'
 import { formatTime } from '@/lib/format'
 
@@ -11,7 +13,7 @@ interface FlowListItemProps {
   onSelect: () => void
 }
 
-export function FlowListItem({ flow, isSelected, eventCount, onSelect }: FlowListItemProps) { // eslint-disable-line @typescript-eslint/no-unused-vars
+export const FlowListItem = memo(function FlowListItem({ flow, isSelected, eventCount, onSelect }: FlowListItemProps) { // eslint-disable-line @typescript-eslint/no-unused-vars
   return (
     <button
       onClick={onSelect}
@@ -36,5 +38,5 @@ export function FlowListItem({ flow, isSelected, eventCount, onSelect }: FlowLis
       </div>
     </button>
   )
-}
+})
 

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface TagBadgeProps {
@@ -7,9 +8,9 @@ interface TagBadgeProps {
   className?: string
 }
 
-export function TagBadge({ tag, selected, onClick, className }: TagBadgeProps) {
+export const TagBadge = memo(function TagBadge({ tag, selected, onClick, className }: TagBadgeProps) {
   const baseClasses = 'text-xs px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-400'
-  
+
   if (onClick) {
     return (
       <button
@@ -26,22 +27,22 @@ export function TagBadge({ tag, selected, onClick, className }: TagBadgeProps) {
       </button>
     )
   }
-  
+
   return (
     <span className={cn(baseClasses, className)}>
       {tag}
     </span>
   )
-}
+})
 
 interface TagListProps {
   tags: string[]
   className?: string
 }
 
-export function TagList({ tags, className }: TagListProps) {
+export const TagList = memo(function TagList({ tags, className }: TagListProps) {
   if (tags.length === 0) return null
-  
+
   return (
     <div className={cn('flex items-center gap-1 shrink-0', className)}>
       {tags.map((tag) => (
@@ -49,5 +50,5 @@ export function TagList({ tags, className }: TagListProps) {
       ))}
     </div>
   )
-}
+})
 

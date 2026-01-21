@@ -1,5 +1,5 @@
 import type { Usage } from '../types'
-import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components/CollapsibleSection'
 
 interface UsageViewProps {
   usage: Usage

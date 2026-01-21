@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import * as Tabs from '@radix-ui/react-tabs'
 import Markdown from 'react-markdown'
 import type { ToolUnion } from '../types'
-import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components'
+import { CollapsibleSection, sectionTypeColors, sectionIcons } from '@/components/CollapsibleSection'
 import { CacheControlBadge } from '../../shared'
 
 interface ToolsViewProps {

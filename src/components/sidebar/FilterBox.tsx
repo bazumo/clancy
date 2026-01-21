@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { TagBadge } from '@/components'
+import { TagBadge } from '@/components/TagBadge'
 import { useFilterParams } from '@/hooks/useFilterParams'
 
 interface FilterBoxProps {
