@@ -7,12 +7,12 @@ export function registerModifier(modifier: FlowModifier): void {
   // Prevent duplicate registration
   const existing = modifiers.find((m) => m.id === modifier.id)
   if (existing) {
-    console.warn(`Modifier with id "${modifier.id}" already registered, skipping`)
+    //console.warn(`Modifier with id "${modifier.id}" already registered, skipping`)
     return
   }
 
   modifiers.push(modifier)
-  console.log(`Registered modifier: ${modifier.name} (${modifier.id})`)
+  //console.log(`Registered modifier: ${modifier.name} (${modifier.id})`)
 }
 
 export function getModifiers(): FlowModifier[] {

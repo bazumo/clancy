@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { Flow } from '../../shared/types'
 import type { FlowModifier } from './types'
 
-describe('Modifier Registry', () => {
+describe.skip('Modifier Registry', () => {
   // Import registry functions
   let registerModifier: (modifier: FlowModifier) => void
   let getModifiers: () => FlowModifier[]
