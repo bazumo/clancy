@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react'
 import type { Flow } from '../../../shared/types'
 import type { EnhancerMatch } from '@/enhancers'
 import type { ViewMode } from '@/components/ViewModeToggle'
@@ -6,6 +7,7 @@ import { MethodBadge } from '@/components/StatusBadge'
 import { FetchedRawHttpView } from '@/enhancers/claude-messages/components/FetchedRawHttpView'
 import { HttpBodyView } from './HttpBodyView'
 import { getRequestViewModes } from '@/lib/format'
+import { flowToCurl } from '@/lib/curl'
 
 interface RequestSectionProps {
   flow: Flow
@@ -21,6 +23,14 @@ export function RequestSection({
   onViewModeChange,
 }: RequestSectionProps) {
   const modes = getRequestViewModes(flow, enhancer)
+  const [copied, setCopied] = useState(false)
+
+  const copyAsCurl = useCallback(() => {
+    navigator.clipboard.writeText(flowToCurl(flow)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [flow])
 
   const renderContent = () => {
     if (viewMode === 'raw' && flow.hasRawHttp) {
@@ -65,6 +75,13 @@ export function RequestSection({
             {flow.request.url}
           </span>
           <div className="flex-1" />
+          <button
+            onClick={copyAsCurl}
+            className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+            title="Copy as cURL"
+          >
+            {copied ? 'Copied!' : 'Copy as cURL'}
+          </button>
           {modes.length > 1 && (
             <ViewModeToggle value={viewMode} onChange={onViewModeChange} modes={modes} />
           )}
