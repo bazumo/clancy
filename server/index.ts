@@ -76,7 +76,10 @@ const server = http.createServer(app)
 store.initWebSocket(server)
 
 // Serve static files
-const distPath = path.join(__dirname, '..', '..', 'dist')
+const uiDistEnv = process.env.UI_DIST?.trim()
+const distPath = uiDistEnv
+  ? (path.isAbsolute(uiDistEnv) ? uiDistEnv : path.join(process.cwd(), uiDistEnv))
+  : path.join(__dirname, '..', '..', 'dist')
 app.use(express.static(distPath))
 
 let requestCount = 0

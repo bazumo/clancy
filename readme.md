@@ -119,6 +119,9 @@ npm run dev
 # Run just the proxy server (watches for changes)
 npm run dev:server
 
+# (Optional) Override the UI build directory
+# UI_DIST=dist npm run dev:server
+
 # Run tests
 npm test
 
