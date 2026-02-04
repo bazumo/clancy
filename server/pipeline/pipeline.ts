@@ -212,9 +212,9 @@ export class Pipeline {
         const flushResult = transform.flush(meta)
 
         if (flushResult?.data) {
-          finalData = flushResult.data
+          finalData = Buffer.from(flushResult.data) as Buffer<ArrayBuffer>
         } else if (processResult?.data) {
-          finalData = processResult.data
+          finalData = Buffer.from(processResult.data) as Buffer<ArrayBuffer>
         }
       }
 

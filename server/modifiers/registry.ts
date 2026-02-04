@@ -1,5 +1,5 @@
-import type { Flow } from '../../shared/types'
-import type { FlowModifier, ModifierMatch } from './types'
+import type { Flow } from '../../shared/types.js'
+import type { FlowModifier, ModifierMatch } from './types.js'
 
 const modifiers: FlowModifier[] = []
 

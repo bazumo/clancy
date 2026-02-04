@@ -4,12 +4,9 @@
  */
 import { spawn, ChildProcess } from 'child_process'
 import { waitForPort } from './ports.js'
+import type { ProxyHandle as ProxyHandleType } from './types.js'
 
-export interface ProxyHandle {
-  port: number
-  process: ChildProcess
-  stop: () => Promise<void>
-}
+export type ProxyHandle = ProxyHandleType & { process: ChildProcess }
 
 export interface ProxyOptions {
   port?: number
@@ -83,6 +80,13 @@ export async function startProxy(options: ProxyOptions = {}): Promise<ProxyHandl
                     }
                   }, 5000)
                 })
+              },
+              clearFlows: async () => {
+                // TODO: Implement flow clearing via IPC or HTTP
+              },
+              getFlows: async () => {
+                // TODO: Implement flow fetching via IPC or HTTP
+                return { count: 0, flows: [] }
               }
             })
           })

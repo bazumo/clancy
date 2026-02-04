@@ -62,20 +62,20 @@ export function generateTestCertificate(options: CertificateOptions = {}): Certi
     {
       name: 'basicConstraints',
       cA: true
-    },
+    } as forge.pki.CertificateField,
     {
       name: 'keyUsage',
       keyCertSign: true,
       digitalSignature: true,
       keyEncipherment: true
-    },
+    } as forge.pki.CertificateField,
     {
       name: 'subjectAltName',
       altNames: altNames.map(name => ({
         type: 2, // DNS
         value: name
       }))
-    }
+    } as forge.pki.CertificateField
   ]
   cert.setExtensions(extensions)
 

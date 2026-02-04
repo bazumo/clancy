@@ -4,14 +4,20 @@
  */
 
 // Re-export all utilities
-export * from './types.js'
+export type { 
+  Compression, TransferMode, Protocol, TestCase, ReceivedRequest, 
+  RequestOptions, ResponseData, SSEEvent, SSEResponseData, 
+  BedrockChunk, BedrockResponseData, TestContext, ServerHandle,
+  WebSocketConnection, TargetServerOptions, ProxyStartOptions, ProxyHandle
+} from './types.js'
 export * from './ports.js'
 export * from './certificates.js'
-export * from './compression.js'
+export { initZstd, compress } from './compression.js'
 export * from './target-servers.js'
-export * from './proxy-runner.js'
+export { startProxy } from './proxy-runner.js'
+export type { ProxyHandle as ProxyHandleWithProcess } from './proxy-runner.js'
 export * from './http-clients.js'
-export * from './test-matrix.js'
+export { COMPRESSIONS, TRANSFER_MODES, BODY_SIZES, cartesian, generateResponseMatrix, generateStreamMatrix, formatTestCase, filterTestCases } from './test-matrix.js'
 
 import { findFreePorts } from './ports.js'
 import { createHttpTargetServer, createHttpsTargetServer } from './target-servers.js'
@@ -117,6 +123,16 @@ export async function setupTestEnvironment(
       httpTargetPort,
       httpsTargetPort,
       receivedRequests,
+      clearRequests: () => {
+        receivedRequests.length = 0
+      },
+      clearFlows: async () => {
+        // Proxy flows clearing would need to be implemented if proxy handle is available
+      },
+      getFlows: async () => {
+        // Would need proxy handle to implement this
+        return { count: 0, flows: [] }
+      },
       cleanup: async () => {
         if (verbose) {
           console.log('[test-utils] Cleaning up test environment...')

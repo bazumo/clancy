@@ -45,6 +45,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:binaries": "server/tls-go/build.sh",
     "build:all": "npm run build && npm run build:server && npm run build:binaries",
+    "clean": "rm -rf dist dist-server node_modules/.tmp",
     "prepublishOnly": "npm run build:all",
     "lint": "eslint .",
     "preview": "vite preview",

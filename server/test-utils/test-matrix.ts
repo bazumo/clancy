@@ -22,7 +22,7 @@ export const BODY_SIZES = [100, 5000]
 /**
  * Generate cartesian product of multiple arrays
  */
-export function cartesian<T>(...arrays: T[][]): T[][] {
+export function cartesian(...arrays: any[][]): any[][] {
   if (arrays.length === 0) return []
   if (arrays.length === 1) return arrays[0].map(item => [item])
 
@@ -53,11 +53,11 @@ export function generateResponseMatrix(options: ResponseMatrixOptions = {}): Tes
   const combinations = cartesian(protocols, compressions, transferModes, bodySizes)
 
   return combinations.map(([protocol, compression, transferMode, bodySize]) => ({
-    protocol: protocol as Protocol,
-    compression: compression as Compression,
-    transferMode: transferMode as TransferMode,
-    bodySize: bodySize as number
-  }))
+    protocol,
+    compression,
+    transferMode,
+    bodySize
+  } as TestCase))
 }
 
 /**
@@ -79,11 +79,11 @@ export function generateStreamMatrix(options: StreamMatrixOptions = {}): TestCas
   const combinations = cartesian(protocols, compressions, transferModes, eventCounts)
 
   return combinations.map(([protocol, compression, transferMode, eventCount]) => ({
-    protocol: protocol as Protocol,
-    compression: compression as Compression,
-    transferMode: transferMode as TransferMode,
-    bodySize: eventCount as number // Reuse bodySize field for event count
-  }))
+    protocol,
+    compression,
+    transferMode,
+    bodySize: eventCount // Reuse bodySize field for event count
+  } as TestCase))
 }
 
 /**

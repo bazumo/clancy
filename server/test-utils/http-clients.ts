@@ -4,15 +4,15 @@
 import http from 'http'
 import https from 'https'
 import { gunzipSync, inflateSync, brotliDecompressSync } from 'zlib'
-import { ZstdCodec } from 'zstd-codec'
+import type { ZstdSimple, ZstdInstance } from 'zstd-codec'
 
-let zstdSimple: { decompress: (data: Uint8Array) => Uint8Array } | null = null
+let zstdSimple: ZstdSimple | null = null
 
 async function ensureZstdReady(): Promise<void> {
   if (zstdSimple) return
   const { ZstdCodec } = await import('zstd-codec')
   return new Promise((resolve) => {
-    ZstdCodec.run((zstd: any) => {
+    ZstdCodec.run((zstd: ZstdInstance) => {
       zstdSimple = new zstd.Simple()
       resolve()
     })
@@ -83,20 +83,22 @@ export async function httpThroughProxy(
   }
 
   // Set up request options
+  const allHeaders: Record<string, string | number> = {
+    ...headers,
+    'Host': `localhost:${targetPort}`
+  }
+  
+  if (body) {
+    allHeaders['Content-Length'] = Buffer.byteLength(body)
+  }
+
   const reqOptions: http.RequestOptions = {
     method,
     host: 'localhost',
     port: proxyPort,
     path: `http://localhost:${targetPort}${path}`,
-    headers: {
-      ...headers,
-      'Host': `localhost:${targetPort}`
-    },
+    headers: allHeaders,
     timeout
-  }
-
-  if (body) {
-    reqOptions.headers!['Content-Length'] = Buffer.byteLength(body)
   }
 
   return new Promise((resolve, reject) => {
@@ -190,7 +192,7 @@ export async function httpsThroughProxy(
         socket,
         rejectUnauthorized: false, // Allow self-signed certs
         timeout
-      }, async (httpsRes) => {
+      } as https.RequestOptions & { socket: typeof socket }, async (httpsRes) => {
         const chunks: Buffer[] = []
         let connectionClosed = false
 
@@ -259,7 +261,6 @@ export async function sseRequest(
 
   return new Promise((resolve, reject) => {
     const events: any[] = []
-    let connectionClosed = false
     let buffer = ''
 
     const makeRequest = isHttps
@@ -289,7 +290,7 @@ export async function sseRequest(
               socket,
               rejectUnauthorized: false,
               timeout
-            }, handleResponse)
+            } as https.RequestOptions & { socket: typeof socket }, handleResponse)
 
             httpsReq.on('error', reject)
             httpsReq.end()
@@ -353,7 +354,6 @@ export async function sseRequest(
       })
 
       res.on('end', () => {
-        connectionClosed = true
         // Give a moment for close event
         setTimeout(() => {
           resolve({ events, connectionClosed: true })
@@ -361,7 +361,7 @@ export async function sseRequest(
       })
 
       res.on('close', () => {
-        connectionClosed = true
+        // Connection closed
       })
 
       res.on('error', reject)

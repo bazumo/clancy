@@ -3,11 +3,11 @@
  * Supports gzip, deflate, brotli, and zstd compression
  */
 import { gzipSync, deflateSync, brotliCompressSync } from 'zlib'
-import { ZstdCodec } from 'zstd-codec'
+import { ZstdCodec, type ZstdSimple, type ZstdInstance } from 'zstd-codec'
 import type { Compression } from './types.js'
 
 // Zstd compressor - lazily initialized
-let zstdSimple: { compress: (data: Uint8Array) => Uint8Array } | null = null
+let zstdSimple: ZstdSimple | null = null
 let zstdReadyPromise: Promise<void> | null = null
 
 /**
@@ -20,7 +20,7 @@ export function initZstd(): Promise<void> {
   }
 
   zstdReadyPromise = new Promise<void>((resolve) => {
-    ZstdCodec.run((zstd: { Simple: new () => { compress: (data: Uint8Array) => Uint8Array } }) => {
+    ZstdCodec.run((zstd: ZstdInstance) => {
       zstdSimple = new zstd.Simple()
       resolve()
     })
