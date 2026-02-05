@@ -27,3 +27,5 @@ server/tls-binaries
 
 # SSL certificates (generated per-installation)
 certs/
+
+.turbo

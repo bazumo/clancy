@@ -1,0 +1,72 @@
+{
+  "name": "clancy-proxy",
+  "version": "0.0.4",
+  "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
+  "type": "module",
+  "author": "bazumo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bazumo/clancy.git"
+  },
+  "homepage": "https://github.com/bazumo/clancy#readme",
+  "bugs": {
+    "url": "https://github.com/bazumo/clancy/issues"
+  },
+  "keywords": [
+    "proxy",
+    "http-proxy",
+    "https-proxy",
+    "monitoring",
+    "claude",
+    "anthropic",
+    "ai",
+    "agent",
+    "tls-fingerprint",
+    "debugging"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "clancy": "bin/clancy.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "bin/",
+    "dist/",
+    "src/tls-binaries/",
+    "readme.md"
+  ],
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "dev:server": "tsx watch src/index.ts",
+    "build": "tsc",
+    "build:server": "tsc",
+    "build:binaries": "src/tls-go/build.sh",
+    "prepublishOnly": "npm run build && npm run build:binaries",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:unit": "vitest run --exclude='**/*e2e*.test.ts'",
+    "test:tls": "vitest run src/tls-provider.test.ts",
+    "clean": "rm -rf dist node_modules/.tmp"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@clancy/shared": "*",
+    "commander": "^14.0.2",
+    "express": "^5.2.1",
+    "fzstd": "^0.1.1",
+    "node-forge": "^1.3.3",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node-forge": "^1.3.14",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "zstd-codec": "^0.1.5"
+  }
+}

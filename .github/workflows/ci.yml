@@ -23,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npm run lint
+        run: npx turbo run lint
 
   typecheck:
     name: Type Check
@@ -41,7 +41,7 @@ jobs:
         run: npm ci
 
       - name: Run TypeScript compiler
-        run: npx tsc --noEmit
+        run: npx turbo run typecheck
 
   test:
     name: Test
@@ -59,7 +59,7 @@ jobs:
         run: npm ci
 
       - name: Run unit tests
-        run: npm run test:unit
+        run: npx turbo run test:unit
 
   build:
     name: Build
@@ -78,11 +78,18 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npx turbo run build
 
-      - name: Upload build artifacts
+      - name: Upload frontend build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: frontend-dist
+          path: packages/frontend/dist/
+          retention-days: 7
+
+      - name: Upload backend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: packages/backend/dist/
           retention-days: 7

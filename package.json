@@ -1,101 +1,34 @@
 {
-  "name": "clancy-proxy",
-  "version": "0.0.4",
-  "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
+  "name": "clancy-monorepo",
+  "private": true,
   "type": "module",
-  "author": "bazumo",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/bazumo/clancy.git"
-  },
-  "homepage": "https://github.com/bazumo/clancy#readme",
-  "bugs": {
-    "url": "https://github.com/bazumo/clancy/issues"
-  },
-  "keywords": [
-    "proxy",
-    "http-proxy",
-    "https-proxy",
-    "monitoring",
-    "claude",
-    "anthropic",
-    "ai",
-    "agent",
-    "tls-fingerprint",
-    "debugging"
+  "packageManager": "npm@10.9.4",
+  "workspaces": [
+    "packages/*"
   ],
   "engines": {
     "node": ">=20.0.0"
   },
-  "bin": {
-    "clancy": "bin/clancy.js"
-  },
-  "files": [
-    "bin/",
-    "dist/",
-    "dist-server/",
-    "server/tls-binaries/",
-    "readme.md",
-    "screenshot.png"
-  ],
   "scripts": {
-    "dev": "vite",
-    "dev:server": "tsx watch server/index.ts",
-    "build": "tsc -b && vite build",
-    "build:server": "tsc -p tsconfig.server.json",
-    "build:binaries": "server/tls-go/build.sh",
-    "build:all": "npm run build && npm run build:server && npm run build:binaries",
-    "clean": "rm -rf dist dist-server node_modules/.tmp",
-    "prepublishOnly": "npm run build:all",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "start": "npm run build && tsx server/index.ts",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:unit": "vitest run --exclude='**/*e2e*.test.ts'",
-    "test:tls": "vitest run server/tls-provider.test.ts"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
-    "@radix-ui/react-scroll-area": "^1.2.10",
-    "@radix-ui/react-separator": "^1.1.8",
-    "@radix-ui/react-slot": "^1.2.4",
-    "@radix-ui/react-tabs": "^1.1.13",
-    "@tanstack/react-virtual": "^3.13.18",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "commander": "^14.0.2",
-    "express": "^5.2.1",
-    "fzstd": "^0.1.1",
-    "node-forge": "^1.3.3",
-    "nuqs": "^2.8.6",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-markdown": "^10.1.0",
-    "tailwind-merge": "^3.4.0",
-    "ws": "^8.19.0"
+    "dev": "turbo run dev",
+    "dev:server": "turbo run dev:server --filter=@clancy/backend",
+    "build": "turbo run build",
+    "build:all": "turbo run build build:server build:binaries",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:run": "turbo run test:run",
+    "test:unit": "turbo run test:unit",
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@tailwindcss/vite": "^4.1.18",
-    "@types/express": "^5.0.6",
     "@types/node": "^24.10.8",
-    "@types/node-forge": "^1.3.14",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "@types/ws": "^8.18.1",
-    "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "tailwindcss": "^4.1.18",
-    "tsx": "^4.21.0",
-    "tw-animate-css": "^1.4.0",
+    "turbo": "^2.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4",
-    "vitest": "^4.0.17",
-    "zstd-codec": "^0.1.5"
+    "vitest": "^4.0.17"
   }
 }
