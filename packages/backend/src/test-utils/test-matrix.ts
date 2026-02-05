@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Test case matrix generation utilities
  * Generates cartesian products for comprehensive test coverage

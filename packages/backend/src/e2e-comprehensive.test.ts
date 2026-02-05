@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
+
 /**
  * Comprehensive E2E tests for the proxy server
  * Tests all combinations of:
