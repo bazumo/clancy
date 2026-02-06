@@ -51,6 +51,7 @@ const packages = [
   'packages/app',
 ]
 
+const publishedVersions = new Set()
 let published = 0
 let skipped = 0
 let failed = 0
@@ -95,10 +96,25 @@ for (const pkgDir of packages) {
   try {
     execSync(cmd, { cwd, stdio: 'inherit' })
     published++
+    publishedVersions.add(pkg.version)
     console.log(`  ✓ ${pkg.name}@${pkg.version}`)
   } catch (err) {
     failed++
     console.error(`  ✗ ${pkg.name}@${pkg.version} — publish failed`)
+  }
+}
+
+// Create one git tag per version (like changeset publish does)
+if (publishedVersions.size > 0 && !dryRun) {
+  console.log('\nCreating git tags...')
+  for (const version of publishedVersions) {
+    const gitTag = `v${version}`
+    try {
+      execSync(`git tag ${gitTag}`, { cwd: root, stdio: 'pipe' })
+      console.log(`  tagged ${gitTag}`)
+    } catch {
+      console.warn(`  skip tag ${gitTag} (already exists)`)
+    }
   }
 }
 
