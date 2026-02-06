@@ -43,8 +43,7 @@
     "readme.md"
   ],
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "dev:server": "tsx watch src/index.ts",
+    "dev": "tsc --watch --preserveWatchOutput",
     "build": "tsc",
     "build:server": "tsc",
     "prepublishOnly": "npm run build",

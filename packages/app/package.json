@@ -35,6 +35,8 @@
     "dist/"
   ],
   "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "dev:server": "tsx watch src/index.ts",
     "build": "tsup && node scripts/copy-frontend.js",
     "clean": "rm -rf dist"
   },
