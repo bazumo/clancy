@@ -3,8 +3,12 @@
  * Spawns and manages the proxy server in a child process
  */
 import { spawn, ChildProcess } from 'child_process'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { waitForPort } from './ports.js'
 import type { ProxyHandle as ProxyHandleType } from './types.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export type ProxyHandle = ProxyHandleType & { process: ChildProcess }
 
@@ -23,11 +27,14 @@ export async function startProxy(options: ProxyOptions = {}): Promise<ProxyHandl
   const timeout = options.timeout || 15000
   const verbose = options.verbose ?? false
 
-  // Spawn proxy with tsx
-  const args = ['src/index.ts', '-p', String(port)]
+  // Spawn proxy with tsx — use absolute path so it works regardless of CWD
+  const backendDir = path.resolve(__dirname, '..', '..')
+  const entryPoint = path.join(backendDir, 'src', 'index.ts')
+  const args = [entryPoint, '-p', String(port)]
 
   const proc = spawn('npx', ['tsx', ...args], {
     stdio: 'pipe',
+    cwd: backendDir,
     env: { ...process.env, NODE_ENV: 'test' }
   })
 

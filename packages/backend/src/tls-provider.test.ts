@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Duplex } from 'stream'
+import https from 'https'
 import {
   registerProvider,
   getProvider,
@@ -12,7 +13,7 @@ import {
   type TLSConnectOptions,
   type TLSFingerprint,
 } from './tls-provider.js'
-import { UtlsProvider } from '@clancy/utls'
+import { UtlsProvider, isBinaryAvailable } from '@clancy/utls'
 
 // ============================================================================
 // Mock Provider for Unit Tests
@@ -180,58 +181,110 @@ describe('UtlsProvider', () => {
 })
 
 // ============================================================================
-// Integration Tests (require Go binary)
-// These tests are skipped because they depend on external servers (httpbin.org)
-// which now respond with HTTP/2, breaking HTTP/1.1 expectations
+// Integration Tests (require Go binary + local HTTPS server)
 // ============================================================================
 
-describe.skip('UtlsProvider Integration', () => {
+// Generate self-signed cert for local test server
+async function generateSelfSignedCert() {
+  const forge = await import('node-forge')
+  const pki = forge.pki
+  const keys = pki.rsa.generateKeyPair(2048)
+  const cert = pki.createCertificate()
+  cert.publicKey = keys.publicKey
+  cert.serialNumber = '01'
+  cert.validity.notBefore = new Date()
+  cert.validity.notAfter = new Date()
+  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1)
+  const attrs = [
+    { name: 'commonName', value: 'localhost' },
+    { name: 'organizationName', value: 'Test' }
+  ]
+  cert.setSubject(attrs)
+  cert.setIssuer(attrs)
+  cert.setExtensions([
+    { name: 'subjectAltName', altNames: [{ type: 2, value: 'localhost' }] }
+  ])
+  cert.sign(keys.privateKey)
+  return {
+    key: pki.privateKeyToPem(keys.privateKey),
+    cert: pki.certificateToPem(cert)
+  }
+}
+
+describe.skipIf(!isBinaryAvailable())('UtlsProvider Integration', () => {
   let provider: UtlsProvider
+  let server: https.Server
+  let serverPort: number
 
   beforeAll(async () => {
+    // Start local HTTPS server
+    const creds = await generateSelfSignedCert()
+    server = https.createServer(creds, (req, res) => {
+      const url = new URL(req.url || '/', `https://localhost`)
+
+      if (url.pathname === '/get') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ url: req.url, headers: req.headers }))
+        return
+      }
+
+      if (url.pathname === '/headers') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ headers: req.headers }))
+        return
+      }
+
+      if (url.pathname === '/post' && req.method === 'POST') {
+        let body = ''
+        req.on('data', (chunk: Buffer) => { body += chunk })
+        req.on('end', () => {
+          let parsed
+          try { parsed = JSON.parse(body) } catch { parsed = body }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ data: parsed }))
+        })
+        return
+      }
+
+      res.writeHead(404)
+      res.end('Not Found')
+    })
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, () => {
+        const addr = server.address()
+        serverPort = typeof addr === 'object' && addr ? addr.port : 0
+        resolve()
+      })
+    })
+
     provider = new UtlsProvider()
-    
-    // Try to initialize - skip tests if binary not available
-    try {
-      await provider.initialize()
-    } catch {
-      console.log('Skipping integration tests: Go binary not available')
-    }
-  }, 15000) // Longer timeout for initialization
+    await provider.initialize()
+  }, 15000)
 
   afterAll(async () => {
     await provider.shutdown()
+    await new Promise<void>((resolve) => { server.close(() => resolve()) })
   })
 
   it('should initialize successfully', () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
     expect(provider.isReady()).toBe(true)
   })
 
   it('should connect to a real HTTPS server', async () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
-
     const socket = await provider.connect({
-      host: 'httpbin.org',
-      port: 443,
+      host: 'localhost',
+      port: serverPort,
       fingerprint: 'electron',
     })
 
     expect(socket).toBeInstanceOf(Duplex)
 
-    // Send a simple HTTP request
-    const request = 'GET /get HTTP/1.1\r\nHost: httpbin.org\r\nConnection: close\r\n\r\n'
+    const request = `GET /get HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n`
     socket.write(request)
 
-    // Read response
     const response = await readResponse(socket)
-    
+
     expect(response).toContain('HTTP/1.1 200')
     expect(response).toContain('application/json')
 
@@ -239,22 +292,16 @@ describe.skip('UtlsProvider Integration', () => {
   }, 30000)
 
   it('should use specified fingerprint', async () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
-
-    // Test with different fingerprints
     const fingerprints: TLSFingerprint[] = ['chrome120', 'firefox120', 'safari16']
 
     for (const fp of fingerprints) {
       const socket = await provider.connect({
-        host: 'httpbin.org',
-        port: 443,
+        host: 'localhost',
+        port: serverPort,
         fingerprint: fp,
       })
 
-      const request = 'GET /headers HTTP/1.1\r\nHost: httpbin.org\r\nConnection: close\r\n\r\n'
+      const request = `GET /headers HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n`
       socket.write(request)
 
       const response = await readResponse(socket)
@@ -265,12 +312,6 @@ describe.skip('UtlsProvider Integration', () => {
   }, 60000)
 
   it('should handle connection errors gracefully', async () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
-
-    // Try to connect to a non-existent host
     await expect(
       provider.connect({
         host: 'this-host-does-not-exist.invalid',
@@ -281,38 +322,26 @@ describe.skip('UtlsProvider Integration', () => {
   }, 30000)
 
   it('should handle invalid port', async () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
-
-    // Try to connect to localhost on a closed port (faster than remote host)
-    // This should fail quickly with connection refused
     await expect(
       provider.connect({
         host: '127.0.0.1',
-        port: 59999, // Unlikely to be open locally
+        port: 59999,
         fingerprint: 'chrome120',
       })
     ).rejects.toThrow()
   }, 10000)
 
   it('should make POST request correctly', async () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
-
     const socket = await provider.connect({
-      host: 'httpbin.org',
-      port: 443,
+      host: 'localhost',
+      port: serverPort,
       fingerprint: 'electron',
     })
 
     const body = '{"test":"data"}'
     const request = [
       'POST /post HTTP/1.1',
-      'Host: httpbin.org',
+      `Host: localhost`,
       'Content-Type: application/json',
       `Content-Length: ${body.length}`,
       'Connection: close',
@@ -323,7 +352,7 @@ describe.skip('UtlsProvider Integration', () => {
     socket.write(request)
 
     const response = await readResponse(socket)
-    
+
     expect(response).toContain('HTTP/1.1 200')
     expect(response).toContain('"test"')
     expect(response).toContain('"data"')
@@ -424,50 +453,57 @@ describe('Fingerprint Validation', () => {
 
 // ============================================================================
 // Concurrent Connection Tests
-// Skipped: depends on external server (httpbin.org) which responds with HTTP/2
 // ============================================================================
 
-describe.skip('Concurrent Connections', () => {
+describe.skipIf(!isBinaryAvailable())('Concurrent Connections', () => {
   let provider: UtlsProvider
+  let server: https.Server
+  let serverPort: number
 
   beforeAll(async () => {
+    const creds = await generateSelfSignedCert()
+    server = https.createServer(creds, (req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ url: req.url }))
+    })
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, () => {
+        const addr = server.address()
+        serverPort = typeof addr === 'object' && addr ? addr.port : 0
+        resolve()
+      })
+    })
+
     provider = new UtlsProvider()
-    try {
-      await provider.initialize()
-    } catch {
-      console.log('Skipping concurrent tests: Go binary not available')
-    }
+    await provider.initialize()
   }, 15000)
 
   afterAll(async () => {
     await provider.shutdown()
+    await new Promise<void>((resolve) => { server.close(() => resolve()) })
   })
 
   it('should handle multiple concurrent connections', async () => {
-    if (!provider.isReady()) {
-      console.log('Skipping: provider not ready')
-      return
-    }
-
     // Make 5 concurrent connections
     const promises = Array.from({ length: 5 }, async (_, i) => {
       const socket = await provider.connect({
-        host: 'httpbin.org',
-        port: 443,
+        host: 'localhost',
+        port: serverPort,
         fingerprint: 'electron',
       })
 
-      const request = `GET /get?id=${i} HTTP/1.1\r\nHost: httpbin.org\r\nConnection: close\r\n\r\n`
+      const request = `GET /get?id=${i} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n`
       socket.write(request)
 
       const response = await readResponse(socket)
       socket.destroy()
-      
+
       return { id: i, success: response.includes('HTTP/1.1 200') }
     })
 
     const results = await Promise.all(promises)
-    
+
     // All should succeed
     for (const result of results) {
       expect(result.success).toBe(true)
@@ -498,9 +534,7 @@ describe('Provider Switching', () => {
   })
 
   it('should switch between providers', async () => {
-    // @ts-expect-error Mock provider with dynamic name
     registerProvider(mockProvider1)
-    // @ts-expect-error Mock provider with dynamic name
     registerProvider(mockProvider2)
 
     await setActiveProvider('mock1')
@@ -515,7 +549,6 @@ describe('Provider Switching', () => {
   })
 
   it('should not shutdown when switching to same provider', async () => {
-    // @ts-expect-error Mock provider with dynamic name
     registerProvider(mockProvider1)
 
     await setActiveProvider('mock1')

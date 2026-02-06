@@ -8,20 +8,9 @@ import type { Flow } from '@clancy/shared'
 import { createNativeTlsSocket, createProviderTlsSocket, forwardRequest } from './tls-sockets.js'
 import { type ResponseWriter } from './proxy-handler.js'
 import { registerProvider, setActiveProvider, shutdownActiveProvider } from './tls-provider.js'
-import { utlsProvider } from '@clancy/utls'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { utlsProvider, isBinaryAvailable } from '@clancy/utls'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-function getUtlsBinaryPath(): string {
-  const platform = process.platform === 'darwin' ? 'darwin' : 'linux'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64'
-  return path.join(__dirname, 'tls-binaries', `tls-proxy-${platform}-${arch}`)
-}
-
-const utlsBinaryExists = fs.existsSync(getUtlsBinaryPath())
+const utlsBinaryExists = isBinaryAvailable()
 
 // Mock the store module
 vi.mock('./flow-store.js', () => ({
