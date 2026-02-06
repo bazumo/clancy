@@ -1,5 +1,11 @@
 # @clancyapp/utls
 
+## 0.0.5-beta.4
+
+### Patch Changes
+
+- disable h2
+
 ## 0.0.5-beta.3
 
 ### Patch Changes

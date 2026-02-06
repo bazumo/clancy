@@ -162,8 +162,18 @@ func handleConnection(clientConn net.Conn) {
 		return
 	}
 
-	// Apply the spec as-is to allow natural ALPN negotiation
-	// This lets the server choose HTTP/2 or HTTP/1.1, just like native clients
+	// Force HTTP/1.1 only in ALPN — Node's http.request speaks HTTP/1.1,
+	// so we must not negotiate h2 or the server will respond with HTTP/2
+	// binary frames that Node's parser can't handle.
+	for i, ext := range baseSpec.Extensions {
+		if alpn, ok := ext.(*tls.ALPNExtension); ok {
+			baseSpec.Extensions[i] = &tls.ALPNExtension{
+				AlpnProtocols: filterALPN(alpn.AlpnProtocols),
+			}
+			break
+		}
+	}
+
 	if err := tlsConn.ApplyPreset(&baseSpec); err != nil {
 		tcpConn.Close()
 		sendErrorLine(clientConn, "Failed to apply TLS spec: "+err.Error())
@@ -199,6 +209,20 @@ func handleConnection(clientConn net.Conn) {
 
 	wg.Wait()
 	tlsConn.Close()
+}
+
+// filterALPN removes h2 from the ALPN list, keeping only HTTP/1.1 protocols.
+func filterALPN(protocols []string) []string {
+	var filtered []string
+	for _, p := range protocols {
+		if p != "h2" {
+			filtered = append(filtered, p)
+		}
+	}
+	if len(filtered) == 0 {
+		return []string{"http/1.1"}
+	}
+	return filtered
 }
 
 func sendErrorLine(conn net.Conn, errMsg string) {

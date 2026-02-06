@@ -1,5 +1,7 @@
 # @clancyapp/utls-darwin-arm64
 
+## 0.0.5-beta.4
+
 ## 0.0.5-beta.3
 
 ### Patch Changes
