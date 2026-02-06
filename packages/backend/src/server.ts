@@ -456,7 +456,8 @@ export function createServer(options?: ClancyServerOptions): ClancyServer {
         server.listen(PORT, HOST, () => {
           const addr = server.address() as import('net').AddressInfo
           console.log(`Clancy proxy running on http://${HOST}:${addr.port}`)
-          console.log(`CA certificate: ${path.join(getCertsDir(), 'ca.crt')}`)
+          const cDir = getCertsDir()
+          console.log(`CA certificate: ${cDir ? path.join(cDir, 'ca.crt') : '(in-memory)'}`)
           console.log(`TLS Provider: ${TLS_PROVIDER === 'native' ? 'Node.js (native)' : `uTLS (Go) - ${TLS_FINGERPRINT}`}`)
           resolve()
         })

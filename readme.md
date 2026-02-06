@@ -1,63 +1,27 @@
 # Clancy
 
-HTTP/HTTPS proxy with real-time monitoring for Agent traffic. Designed for debugging and monitoring Claude Code, Anthropic API calls, and other AI agent communications.
-
+HTTP/HTTPS debugging proxy with a real-time web UI. Built for inspecting AI agent traffic (Claude Code, Bedrock, etc.) but works with anything.
 
 ![Screenshot](screenshot.png)
 
-
-## Features
-
-- **Real-time monitoring** - WebSocket-based live updates as requests flow through
-- **HTTP/HTTPS proxy** - Full support for both protocols with TLS interception
-- **TLS fingerprinting** - Spoof browser TLS fingerprints using uTLS
-- **SSE parsing** - Automatic parsing and display of Server-Sent Events
-- **Request/Response inspection** - View headers, bodies, timing, and more
-- **Enhanced view for agent traffic** - View tools, system prompt, messages etc. inside LLM API calls
-
-It has been tested with:
-- Claude code
-- Claude code (Bedrock)
-- OpenCode (Bedrock)
-
-
-## Quick Start (npx)
-
-Run it with npx:
+## Install
 
 ```bash
 npx clancy-proxy
 ```
 
-## Global Installation
-
-Install globally to use the `clancy` command anywhere:
+Or install globally:
 
 ```bash
 npm install -g clancy-proxy
-```
-
-Then run:
-
-```bash
 clancy
 ```
 
-## Quick Start (from source)
+Opens a web dashboard at `http://localhost:9090`.
 
-```bash
-# Install dependencies
-npm install
+## Proxying traffic
 
-# Build and start the server
-npm start
-```
-
-The server will start on `http://localhost:9090` with the web dashboard.
-
-## Usage
-
-### node.js/bun based app (claude,opencode)
+### Node.js apps (Claude Code, OpenCode, etc.)
 
 ```bash
 HTTP_PROXY=http://localhost:9090 \
@@ -66,90 +30,52 @@ NODE_TLS_REJECT_UNAUTHORIZED=0 \
 claude
 ```
 
-### electron based app (e.g. Claude Desktop)
+### Electron apps (Claude Desktop)
 
 ```bash
-/Applications/Claude.app/Contents/MacOS/Claude --proxy-server="http://localhost:9090" --ignore-certificate-errors
+/Applications/Claude.app/Contents/MacOS/Claude \
+  --proxy-server="http://localhost:9090" \
+  --ignore-certificate-errors
 ```
 
-Other applications might work as well.
-
-### With curl
+### curl
 
 ```bash
 curl -x http://localhost:9090 -k https://api.anthropic.com/v1/messages
 ```
 
-## CLI Options
+## CLI options
 
 ```
-Options:
-  -p, --port <port>                Port to listen on (default: "9090")
-  -H, --host <host>                Host to bind to (default: "localhost")
-  -t, --tls-provider <provider>    TLS provider: 'utls' (Go fingerprinting) or 'native' (Node.js TLS) (default: "native")
-  -f, --tls-fingerprint <fp>       TLS fingerprint for utls (default: "electron")
-  -h, --help                       Display help
+-p, --port <port>              Port to listen on (default: 9090)
+-H, --host <host>              Host to bind to (default: localhost)
+-t, --tls-provider <provider>  'utls' or 'native' (default: native)
+-f, --tls-fingerprint <fp>     Browser fingerprint for utls (default: electron)
+-c, --certs-dir <path>         Persist CA certs to disk (in-memory if omitted)
 ```
 
-### TLS Fingerprints (with uTLS)
+### TLS fingerprinting
 
-When using `--tls-provider utls`, you can specify a browser fingerprint:
+Some services detect and block Node.js TLS fingerprints. Use `--tls-provider utls` to spoof a browser fingerprint:
 
-- `chrome120`, `chrome102`, `chrome100`
-- `firefox120`, `firefox105`, `firefox102`
-- `safari16`
-- `edge106`, `edge85`
-- `ios14`
-- `android11`
-- `electron`
-- `randomized`
-- `golanghttp2`
-
-Example:
 ```bash
 clancy --tls-provider utls --tls-fingerprint chrome120
 ```
+
+Available fingerprints: `chrome120`, `chrome102`, `chrome100`, `firefox120`, `firefox105`, `firefox102`, `safari16`, `edge106`, `edge85`, `ios14`, `android11`, `electron`, `randomized`, `golanghttp2`
 
 ## Development
 
 ```bash
-# Run frontend dev server (hot reload)
-npm run dev
-
-# Run just the proxy server (watches for changes)
-npm run dev:server
-
-# Run tests
-npm test
-
-# Run tests once
-npm run test:run
-
-# Lint code
-npm run lint
+npm install
+npm run dev           # frontend + backend with hot reload
+npm run dev:server    # backend only
+npm run test          # run tests
+npm run lint          # lint
 ```
 
+## Security
 
-## Troubleshooting
-
-### Certificate errors
-
-If you see certificate errors, ensure you're setting `NODE_TLS_REJECT_UNAUTHORIZED=0` or trust the CA certificate generated in `certs/`.
-
-### Port already in use
-
-Change the port with `-p`:
-```bash
-clancy -p 8080
-```
-
-### TLS fingerprint detection
-
-Some services detect and block Node.js TLS fingerprints. Use the uTLS provider:
-```bash
-clancy --tls-provider utls --tls-fingerprint chrome120
-```
-
-
-> ⚠️ **Warning:** Only use this proxy in trusted networks!  
-> Disabling cert checking exposes you to man-in-the-middle (MITM) attacks between the application and the proxy, which in case of agents means RCE on your machine. Only proxy over a trusted network or don't disable cert checking and trust the cert generated in `certs`.
+> **Warning:** Disabling certificate verification (`NODE_TLS_REJECT_UNAUTHORIZED=0`, `--ignore-certificate-errors`, `-k`) exposes traffic between the app and the proxy to MITM attacks. For AI agents, this means potential RCE on your machine. Only do this on trusted networks.
+>
+> To avoid disabling verification, use `-c ./certs` to persist the CA certificate and trust it in your OS/app instead.

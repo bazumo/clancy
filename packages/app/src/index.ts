@@ -13,9 +13,10 @@ program
   .option('-f, --tls-fingerprint <fingerprint>', 'TLS fingerprint for utls (chrome120, firefox120, safari16, electron, etc.)', 'electron')
   .option('-p, --port <port>', 'Port to listen on', '9090')
   .option('-H, --host <host>', 'Host to bind to', 'localhost')
+  .option('-c, --certs-dir <path>', 'Directory to persist CA certificates (in-memory if omitted)')
   .parse()
 
-const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string; host: string }>()
+const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string; host: string; certsDir?: string }>()
 
 // Try to load utls provider
 const providers: TLSProvider[] = []
@@ -37,6 +38,7 @@ const server = createServer({
   tlsProvider: opts.tlsProvider || process.env.TLS_PROVIDER || 'native',
   tlsFingerprint: (opts.tlsFingerprint || process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint,
   staticDir,
+  certsDir: opts.certsDir,
   providers
 })
 
