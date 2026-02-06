@@ -1,0 +1,17 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "clancy-proxy": "0.0.4",
+    "@clancyapp/frontend": "0.0.4",
+    "@clancyapp/shared": "0.0.4",
+    "@clancyapp/utls": "0.0.4",
+    "@clancyapp/utls-linux-x64": "0.0.4",
+    "@clancyapp/utls-linux-arm64": "0.0.4",
+    "@clancyapp/utls-darwin-x64": "0.0.4",
+    "@clancyapp/utls-darwin-arm64": "0.0.4"
+  },
+  "changesets": [
+    "three-geckos-strive"
+  ]
+}

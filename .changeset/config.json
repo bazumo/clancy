@@ -6,6 +6,10 @@
     [
       "@clancyapp/shared",
       "@clancyapp/utls",
+      "@clancyapp/utls-linux-x64",
+      "@clancyapp/utls-linux-arm64",
+      "@clancyapp/utls-darwin-x64",
+      "@clancyapp/utls-darwin-arm64",
       "clancy-proxy"
     ]
   ],

@@ -12,7 +12,7 @@
     "clean": "rm -rf dist node_modules/.tmp"
   },
   "dependencies": {
-    "@clancyapp/shared": "*",
+    "@clancyapp/shared": "0.0.5-beta.0",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
