@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import type { Flow, SSEEvent } from '@clancyapp/shared'
 import type { WebSocketMessage } from './useWebSocket'
 
@@ -44,9 +44,6 @@ export function useFlowStore() {
   const [flows, setFlows] = useState<Flow[]>([])
   const [events, setEvents] = useState<Map<string, SSEEvent[]>>(new Map())
 
-  // Cache token counts per flowId to avoid re-parsing completed flows
-  const tokenCache = useRef<Map<string, TokenTotals>>(new Map())
-
   const handleMessage = useCallback((data: WebSocketMessage) => {
     if (data.type === 'init') {
       const initData = data as unknown as { flows: Flow[]; events?: Record<string, SSEEvent[]> }
@@ -60,8 +57,6 @@ export function useFlowStore() {
         }
       }
       setEvents(eventsMap)
-      // Clear cache on init since we have new data
-      tokenCache.current.clear()
     } else if (data.type === 'flow') {
       const flow = (data as unknown as { flow: Flow }).flow
       setFlows((prev) => {
@@ -71,8 +66,6 @@ export function useFlowStore() {
         }
         return [flow, ...prev]
       })
-      // Invalidate cache for this flow when it updates (response may have finished)
-      tokenCache.current.delete(flow.id)
     } else if (data.type === 'event') {
       const { flowId, event } = data as unknown as { flowId: string; event: SSEEvent }
       setEvents((prev) => {
@@ -81,13 +74,10 @@ export function useFlowStore() {
         newMap.set(flowId, [...flowEvents, event])
         return newMap
       })
-      // Invalidate cache since events changed
-      tokenCache.current.delete(flowId)
     } else if (data.type === 'clear') {
       // Server cleared all data, sync local state
       setFlows([])
       setEvents(new Map())
-      tokenCache.current.clear()
     }
   }, [])
 
@@ -117,16 +107,12 @@ export function useFlowStore() {
       cacheCreationTokens: 0,
     }
 
-    for (const [flowId, flowEvents] of events) {
-      let cached = tokenCache.current.get(flowId)
-      if (!cached) {
-        cached = extractTokens(flowEvents)
-        tokenCache.current.set(flowId, cached)
-      }
-      totals.inputTokens += cached.inputTokens
-      totals.outputTokens += cached.outputTokens
-      totals.cacheReadTokens += cached.cacheReadTokens
-      totals.cacheCreationTokens += cached.cacheCreationTokens
+    for (const [, flowEvents] of events) {
+      const flowTokens = extractTokens(flowEvents)
+      totals.inputTokens += flowTokens.inputTokens
+      totals.outputTokens += flowTokens.outputTokens
+      totals.cacheReadTokens += flowTokens.cacheReadTokens
+      totals.cacheCreationTokens += flowTokens.cacheCreationTokens
     }
 
     return totals
