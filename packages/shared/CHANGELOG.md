@@ -1,5 +1,15 @@
 # @clancyapp/shared
 
+## 0.0.5
+
+### Patch Changes
+
+- 3e18a41: make utls esm
+- 3e18a41: Improve LLM response view
+- 1313711: Split up backend from app
+- 54da17b: Restructure to monorepo, move utls to separate package
+- Release new minor version
+
 ## 0.0.5-beta.5
 
 ## 0.0.5-beta.4

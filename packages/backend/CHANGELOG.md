@@ -1,5 +1,20 @@
 # clancy-proxy
 
+## 0.0.5
+
+### Patch Changes
+
+- 3e18a41: make utls esm
+- 3e18a41: Improve LLM response view
+- 1313711: Split up backend from app
+- Release new minor version
+- Updated dependencies [3e18a41]
+- Updated dependencies [3e18a41]
+- Updated dependencies [1313711]
+- Updated dependencies [54da17b]
+- Updated dependencies
+  - @clancyapp/shared@0.0.5
+
 ## 0.0.5-beta.5
 
 ### Patch Changes
