@@ -5,7 +5,7 @@ import tls from 'tls'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { program } from 'commander'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import { loadOrCreateCA, generateCertForHost, CERTS_DIR } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
@@ -19,7 +19,7 @@ import {
   getAvailableProviders,
   type TLSFingerprint
 } from './tls-provider.js'
-import { utlsProvider } from '@clancy/utls'
+import { utlsProvider } from '@clancyapp/utls'
 import { createNativeTlsSocket, createProviderTlsSocket } from './tls-sockets.js'
 import { createTunnelHttpParser, attachSocketToParser } from './https-tunnel-handler.js'
 import './modifiers/index.js'

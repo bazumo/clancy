@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import type { FlowModifier } from './types'
 
 describe.skip('Modifier Registry', () => {

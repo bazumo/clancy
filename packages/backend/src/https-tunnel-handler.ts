@@ -1,7 +1,7 @@
 import http from 'http'
 import type { TLSSocket } from 'tls'
 import type { Duplex } from 'stream'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import { generateId } from './utils.js'
 import { forwardRequest } from './tls-sockets.js'
 import { createResponseWriter } from './proxy-handler.js'

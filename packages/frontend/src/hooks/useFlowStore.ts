@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import type { WebSocketMessage } from './useWebSocket'
 
 export function useFlowStore() {

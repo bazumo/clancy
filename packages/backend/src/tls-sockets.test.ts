@@ -4,11 +4,11 @@ import https from 'https'
 import { createServer as createHttpsServer } from 'https'
 import { gzipSync, deflateSync } from 'zlib'
 import type { Duplex } from 'stream'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import { createNativeTlsSocket, createProviderTlsSocket, forwardRequest } from './tls-sockets.js'
 import { type ResponseWriter } from './proxy-handler.js'
 import { registerProvider, setActiveProvider, shutdownActiveProvider } from './tls-provider.js'
-import { utlsProvider, isBinaryAvailable } from '@clancy/utls'
+import { utlsProvider, isBinaryAvailable } from '@clancyapp/utls'
 
 const utlsBinaryExists = isBinaryAvailable()
 

@@ -1,8 +1,21 @@
 {
-  "name": "@clancy/utls",
+  "name": "@clancyapp/utls",
   "version": "0.0.4",
   "description": "uTLS provider for Clancy proxy - TLS fingerprint spoofing",
   "type": "module",
+  "author": "bazumo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bazumo/clancy.git",
+    "directory": "packages/utls"
+  },
+  "homepage": "https://github.com/bazumo/clancy#readme",
+  "bugs": {
+    "url": "https://github.com/bazumo/clancy/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -17,6 +30,7 @@
   "scripts": {
     "build": "tsc && bash tls-go/build.sh",
     "build:binaries": "bash tls-go/build.sh",
+    "prepublishOnly": "tsc",
     "clean": "rm -rf dist platforms/*/bin"
   },
   "keywords": [
@@ -28,10 +42,10 @@
     "safari"
   ],
   "optionalDependencies": {
-    "@clancy/utls-linux-x64": "0.0.4",
-    "@clancy/utls-linux-arm64": "0.0.4",
-    "@clancy/utls-darwin-x64": "0.0.4",
-    "@clancy/utls-darwin-arm64": "0.0.4"
+    "@clancyapp/utls-linux-x64": "0.0.4",
+    "@clancyapp/utls-linux-arm64": "0.0.4",
+    "@clancyapp/utls-darwin-x64": "0.0.4",
+    "@clancyapp/utls-darwin-arm64": "0.0.4"
   },
   "devDependencies": {
     "@types/node": "^24.10.8",

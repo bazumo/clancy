@@ -1,8 +1,21 @@
 {
-  "name": "@clancy/shared",
+  "name": "@clancyapp/shared",
   "version": "0.0.4",
   "description": "Shared types for Clancy proxy",
   "type": "module",
+  "author": "bazumo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bazumo/clancy.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/bazumo/clancy#readme",
+  "bugs": {
+    "url": "https://github.com/bazumo/clancy/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -16,6 +29,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "clean": "rm -rf dist"
   },
   "devDependencies": {

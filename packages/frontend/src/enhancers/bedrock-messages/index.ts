@@ -1,4 +1,4 @@
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import type { FlowEnhancer } from '../types'
 import { registerEnhancer } from '../registry'
 import type { ClaudeMessagesRequest, ContentBlock } from '../claude-messages/types'

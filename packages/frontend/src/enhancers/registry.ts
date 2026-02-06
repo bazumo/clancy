@@ -1,4 +1,4 @@
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import type { FlowEnhancer, EnhancerMatch } from './types'
 
 // Registry of all enhancers

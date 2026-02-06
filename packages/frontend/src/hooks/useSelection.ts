@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import { getPrimaryEnhancer } from '../enhancers'
 import type { EnhancerMatch } from '../enhancers'
 import type { ViewMode } from '../components/ViewModeToggle'

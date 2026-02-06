@@ -1,4 +1,4 @@
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import type { FlowRequest, FlowResponse } from './types.js'
 import { matchModifiers } from './registry.js'
 

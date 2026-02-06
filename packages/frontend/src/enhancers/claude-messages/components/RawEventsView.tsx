@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import type { SSEEvent, Flow } from '@clancy/shared'
+import type { SSEEvent, Flow } from '@clancyapp/shared'
 import { LogEventItem } from './LogEventItem'
 
 interface RawEventsViewProps {

@@ -1,6 +1,6 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { SidebarItem } from '@/hooks/useFilters'
-import type { SSEEvent } from '@clancy/shared'
+import type { SSEEvent } from '@clancyapp/shared'
 
 interface SidebarProps {
   filterBox: React.ReactNode

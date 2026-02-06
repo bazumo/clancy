@@ -1,5 +1,5 @@
 import http from 'http'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import type { ResponseMeta, TransformStage, TapStage, StreamSink } from './types.js'
 import { Pipeline } from './pipeline.js'
 import { DecompressionStage, ResponseModifierStage } from './transforms/index.js'

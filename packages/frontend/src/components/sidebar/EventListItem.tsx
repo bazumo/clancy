@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { cn } from '@/lib/utils'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import { formatTime } from '@/lib/format'
 
 interface EventListItemProps {

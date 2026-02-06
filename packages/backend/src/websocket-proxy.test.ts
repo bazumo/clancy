@@ -10,7 +10,7 @@ import tls from 'tls'
 import crypto from 'crypto'
 import { WebSocketServer } from 'ws'
 import { generateCert, startProxy, findFreePorts } from './test-utils/index.js'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 
 // ============================================================================
 // Test Infrastructure

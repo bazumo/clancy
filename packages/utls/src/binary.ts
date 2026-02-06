@@ -10,10 +10,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
  * Platform/arch to package name mapping
  */
 const PLATFORM_PACKAGES: Record<string, string> = {
-  'linux-x64': '@clancy/utls-linux-x64',
-  'linux-arm64': '@clancy/utls-linux-arm64',
-  'darwin-x64': '@clancy/utls-darwin-x64',
-  'darwin-arm64': '@clancy/utls-darwin-arm64',
+  'linux-x64': '@clancyapp/utls-linux-x64',
+  'linux-arm64': '@clancyapp/utls-linux-arm64',
+  'darwin-x64': '@clancyapp/utls-darwin-x64',
+  'darwin-arm64': '@clancyapp/utls-darwin-arm64',
 }
 
 /**

@@ -2,9 +2,9 @@ import tls from 'tls'
 import http from 'http'
 import type { Duplex } from 'stream'
 import { tlsConnect } from './tls-provider.js'
-import { utlsProvider } from '@clancy/utls'
+import { utlsProvider } from '@clancyapp/utls'
 import { handleProxyResponse, handleProxyError, type ResponseWriter } from './proxy-handler.js'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 
 /**
  * Create a native Node.js TLS socket

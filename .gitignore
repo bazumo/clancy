@@ -11,7 +11,7 @@ node_modules
 dist
 dist-server
 dist-ssr
-server/tls-binaries
+packages/utls/platforms/*/bin/
 *.local
 
 # Editor directories and files

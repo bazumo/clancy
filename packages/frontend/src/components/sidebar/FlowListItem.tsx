@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import { MethodBadge, StatusBadge } from '@/components/StatusBadge'
 import { EventCountBadge } from '@/components/EventCountBadge'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import { formatTime } from '@/lib/format'
 
 interface FlowListItemProps {

@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, type ReactNode } from 'react'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import { useFlowStore } from '@/hooks/useFlowStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
 

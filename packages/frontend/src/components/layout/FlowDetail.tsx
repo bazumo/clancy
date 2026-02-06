@@ -1,5 +1,5 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import type { EnhancerMatch } from '@/enhancers'
 import type { ViewMode } from '@/components/ViewModeToggle'
 

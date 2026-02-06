@@ -1,4 +1,4 @@
-import type { SSEEvent } from '@clancy/shared'
+import type { SSEEvent } from '@clancyapp/shared'
 import { SSEStreamParser } from './sse-parser.js'
 import { BedrockEventStreamParser } from './bedrock-parser.js'
 

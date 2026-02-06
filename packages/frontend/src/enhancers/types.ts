@@ -1,4 +1,4 @@
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 
 export interface RequestBodyProps {
   flow: Flow

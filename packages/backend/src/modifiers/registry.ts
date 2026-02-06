@@ -1,4 +1,4 @@
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import type { FlowModifier, ModifierMatch } from './types.js'
 
 const modifiers: FlowModifier[] = []

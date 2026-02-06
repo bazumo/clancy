@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import { useQueryState, parseAsString } from 'nuqs'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import { getPrimaryEnhancer } from '../enhancers'
 import type { EnhancerMatch } from '../enhancers'
 import type { ViewMode } from '../components/ViewModeToggle'

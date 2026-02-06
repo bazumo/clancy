@@ -1,5 +1,5 @@
 {
-  "name": "@clancy/frontend",
+  "name": "@clancyapp/frontend",
   "version": "0.0.4",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "clean": "rm -rf dist node_modules/.tmp"
   },
   "dependencies": {
-    "@clancy/shared": "*",
+    "@clancyapp/shared": "*",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",

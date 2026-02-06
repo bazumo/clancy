@@ -1,4 +1,4 @@
-import type { SSEEvent } from '@clancy/shared'
+import type { SSEEvent } from '@clancyapp/shared'
 import { generateId } from '../utils.js'
 
 // Incremental SSE parser for streaming

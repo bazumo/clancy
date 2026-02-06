@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import http from 'http'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 import {
   handleProxyResponse,
   handleProxyError,

@@ -1,11 +1,28 @@
 {
-  "name": "@clancy/utls-linux-arm64",
+  "name": "@clancyapp/utls-linux-arm64",
   "version": "0.0.4",
   "description": "uTLS binary for Linux arm64",
   "type": "module",
+  "author": "bazumo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bazumo/clancy.git",
+    "directory": "packages/utls/platforms/linux-arm64"
+  },
+  "homepage": "https://github.com/bazumo/clancy#readme",
+  "bugs": {
+    "url": "https://github.com/bazumo/clancy/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./index.js",
-  "os": ["linux"],
-  "cpu": ["arm64"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "files": [
     "index.js",
     "bin/"

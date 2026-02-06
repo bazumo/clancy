@@ -2,7 +2,7 @@ import { useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FlowListItem } from './FlowListItem'
 import { EventListItem } from './EventListItem'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 
 interface FlowItem {
   type: 'flow'

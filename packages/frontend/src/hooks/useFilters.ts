@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 import { getFlowTags } from '../enhancers'
 import { useFilterParams } from './useFilterParams'
 

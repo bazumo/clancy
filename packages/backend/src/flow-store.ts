@@ -1,6 +1,6 @@
 import http from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
-import type { Flow, SSEEvent } from '@clancy/shared'
+import type { Flow, SSEEvent } from '@clancyapp/shared'
 
 // In-memory storage
 const flows = new Map<string, Flow>()

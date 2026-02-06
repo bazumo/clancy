@@ -1,5 +1,5 @@
 import http from 'http'
-import type { Flow } from '@clancy/shared'
+import type { Flow } from '@clancyapp/shared'
 
 /**
  * Metadata about a response being processed by the pipeline

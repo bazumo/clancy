@@ -13,7 +13,7 @@ import {
   type TLSConnectOptions,
   type TLSFingerprint,
 } from './tls-provider.js'
-import { UtlsProvider, isBinaryAvailable } from '@clancy/utls'
+import { UtlsProvider, isBinaryAvailable } from '@clancyapp/utls'
 
 // ============================================================================
 // Mock Provider for Unit Tests
