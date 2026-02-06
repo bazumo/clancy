@@ -31,7 +31,7 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "changeset": "changeset",
     "version-packages": "changeset version && node scripts/sync-platform-versions.js",
-    "release": "turbo run build && changeset publish",
+    "release": "turbo run build && node scripts/publish.js",
     "pre:beta": "changeset pre enter beta",
     "pre:exit": "changeset pre exit"
   },
