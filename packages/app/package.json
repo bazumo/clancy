@@ -1,6 +1,6 @@
 {
   "name": "clancy-proxy",
-  "version": "0.0.5-beta.0",
+  "version": "0.0.5-beta.1",
   "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
   "type": "module",
   "author": "bazumo",
@@ -39,14 +39,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clancyapp/backend": "0.0.5-beta.0",
+    "@clancyapp/backend": "0.0.5-beta.1",
     "commander": "^14.0.2"
   },
   "optionalDependencies": {
-    "@clancyapp/utls": "0.0.5-beta.0"
+    "@clancyapp/utls": "0.0.5-beta.1"
   },
   "devDependencies": {
-    "@clancyapp/frontend": "*",
     "tsup": "^8.4.0",
     "tsx": "^4.21.0"
   }

@@ -1,6 +1,6 @@
 {
   "name": "@clancyapp/utls",
-  "version": "0.0.5-beta.0",
+  "version": "0.0.5-beta.1",
   "description": "uTLS provider for Clancy proxy - TLS fingerprint spoofing",
   "type": "module",
   "author": "bazumo",
@@ -42,10 +42,10 @@
     "safari"
   ],
   "optionalDependencies": {
-    "@clancyapp/utls-linux-x64": "0.0.5-beta.0",
-    "@clancyapp/utls-linux-arm64": "0.0.5-beta.0",
-    "@clancyapp/utls-darwin-x64": "0.0.5-beta.0",
-    "@clancyapp/utls-darwin-arm64": "0.0.5-beta.0"
+    "@clancyapp/utls-linux-x64": "0.0.5-beta.1",
+    "@clancyapp/utls-linux-arm64": "0.0.5-beta.1",
+    "@clancyapp/utls-darwin-x64": "0.0.5-beta.1",
+    "@clancyapp/utls-darwin-arm64": "0.0.5-beta.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.8",
