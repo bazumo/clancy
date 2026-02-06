@@ -6,10 +6,6 @@
   "workspaces": [
     "packages/shared",
     "packages/utls",
-    "packages/utls/platforms/linux-x64",
-    "packages/utls/platforms/linux-arm64",
-    "packages/utls/platforms/darwin-x64",
-    "packages/utls/platforms/darwin-arm64",
     "packages/frontend",
     "packages/backend",
     "packages/app"
