@@ -13,7 +13,7 @@ const modeLabels: Record<ViewMode, string> = {
   raw: 'Raw',
   http: 'HTTP',
   events: 'Events',
-  enhanced: 'Enhanced',
+  enhanced: 'Stream',
 }
 
 export function ViewModeToggle({ value, onChange, modes, className }: ViewModeToggleProps) {

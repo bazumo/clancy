@@ -5,7 +5,7 @@ import { ViewModeToggle } from '@/components/ViewModeToggle'
 import { StatusBadge } from '@/components/StatusBadge'
 import { FetchedRawHttpView } from '@/enhancers/claude-messages/components/FetchedRawHttpView'
 import { RawEventsView } from '@/enhancers/claude-messages/components/RawEventsView'
-import { EnhancedEventsView } from '@/enhancers/claude-messages/components/EnhancedEventsView'
+import { StreamedResponseView } from '@/enhancers/claude-messages/components/StreamedResponseView'
 import { HttpBodyView } from './HttpBodyView'
 import { getResponseViewModes, getEffectiveResponseViewMode } from '@/lib/format'
 
@@ -59,18 +59,15 @@ export function ResponseSection({
     }
 
     if (effectiveMode === 'enhanced' && enhancer) {
-      const EventComponent = enhancer.enhancer.EventComponent
       const ResponseBodyComponent = enhancer.enhancer.ResponseBodyComponent
 
-      if (hasEvents && EventComponent) {
+      if (hasEvents) {
         return (
-          <EnhancedEventsView
-            flow={flow}
+          <StreamedResponseView
             events={events}
+            flow={flow}
             selectedEventId={selectedEventId}
             eventRefs={eventRefs}
-            EventComponent={EventComponent}
-            transformEventData={enhancer.enhancer.transformEventData}
           />
         )
       }
