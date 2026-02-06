@@ -13,6 +13,8 @@
     "@clancyapp/utls-darwin-arm64": "0.0.4"
   },
   "changesets": [
+    "slimy-foxes-bow",
+    "smooth-views-juggle",
     "thirty-snakes-grin",
     "three-geckos-strive"
   ]

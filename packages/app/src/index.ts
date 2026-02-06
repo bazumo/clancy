@@ -23,10 +23,11 @@ const providers: TLSProvider[] = []
 try {
   const utls = await import('@clancyapp/utls')
   providers.push(utls.utlsProvider)
-} catch {
+} catch (err) {
   if (opts.tlsProvider === 'utls') {
-    console.warn('[TLS] @clancyapp/utls not installed — falling back to native TLS')
+    console.warn('[TLS] @clancyapp/utls not available — falling back to native TLS')
     console.warn('[TLS] Install with: npm install @clancyapp/utls')
+    console.warn('[TLS]', (err as Error).message)
   }
 }
 

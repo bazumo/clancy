@@ -38,7 +38,7 @@ export class UtlsProvider implements TLSProvider {
   async initialize(): Promise<void> {
     if (this.ready) return
 
-    const binaryPath = getBinaryPath()
+    const binaryPath = await getBinaryPath()
     const socketPath = `/tmp/clancy-tls-${process.pid}.sock`
 
     return new Promise((resolve, reject) => {

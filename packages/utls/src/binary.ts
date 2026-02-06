@@ -1,9 +1,7 @@
-import { createRequire } from 'module'
 import { existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
-const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /**
@@ -55,7 +53,7 @@ function getLocalBinaryPath(platformKey: string): string | null {
  * Get the path to the uTLS binary for the current platform
  * @throws Error if no binary is available for the current platform
  */
-export function getBinaryPath(): string {
+export async function getBinaryPath(): Promise<string> {
   const platformKey = getPlatformKey()
   const packageName = PLATFORM_PACKAGES[platformKey]
 
@@ -72,9 +70,9 @@ export function getBinaryPath(): string {
     return localPath
   }
 
-  // Then try to require the platform-specific package
+  // Then try to import the platform-specific package
   try {
-    const pkg = require(packageName) as { binaryPath: string }
+    const pkg = await import(packageName) as { binaryPath: string }
     return pkg.binaryPath
   } catch (err) {
     throw new Error(
@@ -88,9 +86,9 @@ export function getBinaryPath(): string {
 /**
  * Check if the uTLS binary is available for the current platform
  */
-export function isBinaryAvailable(): boolean {
+export async function isBinaryAvailable(): Promise<boolean> {
   try {
-    getBinaryPath()
+    await getBinaryPath()
     return true
   } catch {
     return false
