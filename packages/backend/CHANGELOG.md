@@ -1,5 +1,11 @@
 # clancy-proxy
 
+## 0.0.5-beta.5
+
+### Patch Changes
+
+- @clancyapp/shared@0.0.5-beta.5
+
 ## 0.0.5-beta.4
 
 ### Patch Changes

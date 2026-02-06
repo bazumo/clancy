@@ -1,6 +1,6 @@
 {
   "name": "@clancyapp/utls-linux-x64",
-  "version": "0.0.5-beta.4",
+  "version": "0.0.5-beta.5",
   "description": "uTLS binary for Linux x64",
   "type": "module",
   "author": "bazumo",
