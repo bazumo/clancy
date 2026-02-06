@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, type ReactNode } from 'react'
 import type { Flow, SSEEvent } from '@clancyapp/shared'
-import { useFlowStore } from '@/hooks/useFlowStore'
+import { useFlowStore, type TokenTotals } from '@/hooks/useFlowStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
 
 interface FlowContextValue {
@@ -11,6 +11,7 @@ interface FlowContextValue {
   flows: Flow[]
   events: Map<string, SSEEvent[]>
   totalEvents: number
+  tokenTotals: TokenTotals
   // Actions
   clearAll: () => Promise<void>
   getFlowEvents: (flowId: string) => SSEEvent[]
@@ -31,6 +32,7 @@ export function FlowProvider({ children }: FlowProviderProps) {
     flows: flowStore.flows,
     events: flowStore.events,
     totalEvents: flowStore.totalEvents,
+    tokenTotals: flowStore.tokenTotals,
     clearAll: flowStore.clearAll,
     getFlowEvents: flowStore.getFlowEvents,
   }

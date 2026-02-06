@@ -10,7 +10,7 @@ import { ResponseSection } from '@/components/detail/ResponseSection'
 
 function AppContent() {
   // Get data from context
-  const { flows, events, connected, totalEvents, clearAll } = useFlowContext()
+  const { flows, events, connected, totalEvents, tokenTotals, clearAll } = useFlowContext()
 
   // Filtering (uses URL params internally via useFilterParams)
   const { filteredItems, flowTagsMap, uniqueTags, uniqueEventTypes } = useFilters(flows, events)
@@ -44,6 +44,7 @@ function AppContent() {
         connected={connected}
         flowCount={flows.length}
         eventCount={totalEvents}
+        tokenTotals={tokenTotals}
         onClear={handleClear}
       />
 
