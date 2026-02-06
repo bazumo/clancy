@@ -1,0 +1,16 @@
+{
+  "name": "@clancy/utls-darwin-x64",
+  "version": "0.0.4",
+  "description": "uTLS binary for macOS x64",
+  "type": "module",
+  "main": "./index.js",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "files": [
+    "index.js",
+    "bin/"
+  ],
+  "scripts": {
+    "build": "echo 'Binary package - no build needed'"
+  }
+}

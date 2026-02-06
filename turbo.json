@@ -3,14 +3,15 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", "platforms/**/bin/**"]
     },
     "build:server": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
     "build:binaries": {
-      "outputs": ["src/tls-binaries/**"]
+      "outputs": ["bin/**"],
+      "cache": false
     },
     "dev": {
       "cache": false,

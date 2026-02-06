@@ -1,0 +1,40 @@
+{
+  "name": "@clancy/utls",
+  "version": "0.0.4",
+  "description": "uTLS provider for Clancy proxy - TLS fingerprint spoofing",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && bash tls-go/build.sh",
+    "build:binaries": "bash tls-go/build.sh",
+    "clean": "rm -rf dist platforms/*/bin"
+  },
+  "keywords": [
+    "tls",
+    "utls",
+    "fingerprint",
+    "chrome",
+    "firefox",
+    "safari"
+  ],
+  "optionalDependencies": {
+    "@clancy/utls-linux-x64": "0.0.4",
+    "@clancy/utls-linux-arm64": "0.0.4",
+    "@clancy/utls-darwin-x64": "0.0.4",
+    "@clancy/utls-darwin-arm64": "0.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.8",
+    "typescript": "~5.9.3"
+  }
+}

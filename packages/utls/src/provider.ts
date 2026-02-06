@@ -1,17 +1,8 @@
 import { ChildProcess, spawn } from 'child_process'
 import { Duplex } from 'stream'
 import net from 'net'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import type { TLSProvider, TLSConnectOptions, TLSFingerprint } from './tls-provider.js'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-function getBinaryPath(): string {
-  const platform = process.platform === 'darwin' ? 'darwin' : 'linux'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64'
-  return path.join(__dirname, 'tls-binaries', `tls-proxy-${platform}-${arch}`)
-}
+import { getBinaryPath } from './binary.js'
+import type { TLSProvider, TLSConnectOptions, TLSFingerprint } from './types.js'
 
 /**
  * TLS Provider using Go utls for fingerprint spoofing

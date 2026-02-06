@@ -2,7 +2,7 @@ import tls from 'tls'
 import http from 'http'
 import type { Duplex } from 'stream'
 import { tlsConnect } from './tls-provider.js'
-import { utlsProvider } from './tls-provider-utls.js'
+import { utlsProvider } from '@clancy/utls'
 import { handleProxyResponse, handleProxyError, type ResponseWriter } from './proxy-handler.js'
 import type { Flow } from '@clancy/shared'
 

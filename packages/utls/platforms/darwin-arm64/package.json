@@ -1,0 +1,16 @@
+{
+  "name": "@clancy/utls-darwin-arm64",
+  "version": "0.0.4",
+  "description": "uTLS binary for macOS arm64 (Apple Silicon)",
+  "type": "module",
+  "main": "./index.js",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": [
+    "index.js",
+    "bin/"
+  ],
+  "scripts": {
+    "build": "echo 'Binary package - no build needed'"
+  }
+}

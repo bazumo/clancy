@@ -19,7 +19,7 @@ import {
   getAvailableProviders,
   type TLSFingerprint
 } from './tls-provider.js'
-import { utlsProvider } from './tls-provider-utls.js'
+import { utlsProvider } from '@clancy/utls'
 import { createNativeTlsSocket, createProviderTlsSocket } from './tls-sockets.js'
 import { createTunnelHttpParser, attachSocketToParser } from './https-tunnel-handler.js'
 import './modifiers/index.js'
@@ -77,9 +77,84 @@ store.initWebSocket(server)
 
 // Serve static files from the frontend package
 const distPath = path.join(__dirname, '..', '..', 'frontend', 'dist')
-app.use(express.static(distPath))
 
 let requestCount = 0
+
+// Handle HTTP proxy requests (must run before static files —
+// proxy requests use absolute URLs like "GET http://host/path HTTP/1.1",
+// but Express normalises req.url to just the path for routing, so
+// express.static would match "/" and serve index.html instead of proxying)
+app.use((req, res, next) => {
+  const targetUrl = req.url
+  if (!targetUrl.startsWith('http://')) {
+    next()
+    return
+  }
+
+  const id = generateId()
+  const startTime = Date.now()
+  const parsedUrl = new URL(targetUrl)
+
+  const requestChunks: Buffer[] = []
+  req.on('data', (chunk) => requestChunks.push(chunk))
+
+  req.on('end', async () => {
+    const requestBody = Buffer.concat(requestChunks).toString('utf-8')
+
+    const flow: Flow = {
+      id,
+      timestamp: new Date().toISOString(),
+      host: parsedUrl.host,
+      type: 'http',
+      request: {
+        method: req.method,
+        url: targetUrl,
+        path: parsedUrl.pathname + parsedUrl.search,
+        headers: req.headers as Record<string, string | string[] | undefined>,
+        body: requestBody || undefined
+      }
+    }
+
+    store.saveFlow(flow)
+    requestCount++
+
+    // Apply request modifiers
+    const modifiedRequest = await applyRequestModifiers(flow, {
+      method: req.method || 'GET',
+      url: targetUrl,
+      path: parsedUrl.pathname + parsedUrl.search,
+      host: parsedUrl.host,
+      headers: req.headers as Record<string, string>,
+      body: requestBody || undefined
+    })
+
+    const options: http.RequestOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 80,
+      path: modifiedRequest.path,
+      method: modifiedRequest.method,
+      headers: { ...modifiedRequest.headers, host: parsedUrl.host }
+    }
+
+    const writer = createResponseWriter(res)
+
+    const proxyReq = http.request(options, (proxyRes) => {
+      handleProxyResponse(proxyRes, { flow, startTime, writer })
+    })
+
+    proxyReq.on('error', (err) => {
+      handleProxyError(err, flow, startTime, writer)
+    })
+
+    if (modifiedRequest.body) {
+      proxyReq.write(modifiedRequest.body)
+    }
+    proxyReq.end()
+  })
+})
+
+// Serve static files (after proxy handler so absolute-URL requests aren't caught)
+app.use(express.static(distPath))
 
 app.get('/api/stats', (_req, res) => {
   res.json({
@@ -158,77 +233,12 @@ app.post('/api/tls/fingerprint/:fingerprint', express.json(), (req, res) => {
   res.json({ success: true, fingerprint })
 })
 
-// Handle HTTP proxy requests
-app.use((req, res) => {
-  const targetUrl = req.url
-  if (!targetUrl.startsWith('http://')) {
-    res.sendFile(path.join(distPath, 'index.html'), (err) => {
-      if (err) {
-        res.status(404).end()
-      }
-    })
-    return
-  }
-
-  const id = generateId()
-  const startTime = Date.now()
-  const parsedUrl = new URL(targetUrl)
-
-  const requestChunks: Buffer[] = []
-  req.on('data', (chunk) => requestChunks.push(chunk))
-
-  req.on('end', async () => {
-    const requestBody = Buffer.concat(requestChunks).toString('utf-8')
-
-    const flow: Flow = {
-      id,
-      timestamp: new Date().toISOString(),
-      host: parsedUrl.host,
-      type: 'http',
-      request: {
-        method: req.method,
-        url: targetUrl,
-        path: parsedUrl.pathname + parsedUrl.search,
-        headers: req.headers as Record<string, string | string[] | undefined>,
-        body: requestBody || undefined
-      }
+// SPA fallback — serve index.html for any non-API, non-proxy route
+app.use((_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    if (err) {
+      res.status(404).end()
     }
-
-    store.saveFlow(flow)
-    requestCount++
-
-    // Apply request modifiers
-    const modifiedRequest = await applyRequestModifiers(flow, {
-      method: req.method || 'GET',
-      url: targetUrl,
-      path: parsedUrl.pathname + parsedUrl.search,
-      host: parsedUrl.host,
-      headers: req.headers as Record<string, string>,
-      body: requestBody || undefined
-    })
-
-    const options: http.RequestOptions = {
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port || 80,
-      path: modifiedRequest.path,
-      method: modifiedRequest.method,
-      headers: { ...modifiedRequest.headers, host: parsedUrl.host }
-    }
-
-    const writer = createResponseWriter(res)
-
-    const proxyReq = http.request(options, (proxyRes) => {
-      handleProxyResponse(proxyRes, { flow, startTime, writer })
-    })
-
-    proxyReq.on('error', (err) => {
-      handleProxyError(err, flow, startTime, writer)
-    })
-
-    if (modifiedRequest.body) {
-      proxyReq.write(modifiedRequest.body)
-    }
-    proxyReq.end()
   })
 })
 

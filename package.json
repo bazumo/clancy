@@ -4,15 +4,19 @@
   "type": "module",
   "packageManager": "npm@10.9.4",
   "workspaces": [
-    "packages/*"
+    "packages/shared",
+    "packages/utls",
+    "packages/frontend",
+    "packages/backend"
   ],
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
     "dev": "turbo run dev",
-    "dev:server": "turbo run dev:server --filter=@clancy/backend",
+    "dev:server": "turbo run dev:server --filter=clancy-proxy",
     "build": "turbo run build",
+    "build:binaries": "turbo run build:binaries --filter=@clancy/utls",
     "build:all": "turbo run build build:server build:binaries",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

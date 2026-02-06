@@ -3,6 +3,7 @@
   "files": [],
   "references": [
     { "path": "./packages/shared" },
+    { "path": "./packages/utls" },
     { "path": "./packages/frontend" },
     { "path": "./packages/backend" }
   ]

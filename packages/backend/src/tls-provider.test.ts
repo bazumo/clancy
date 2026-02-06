@@ -12,7 +12,7 @@ import {
   type TLSConnectOptions,
   type TLSFingerprint,
 } from './tls-provider.js'
-import { UtlsProvider } from './tls-provider-utls.js'
+import { UtlsProvider } from '@clancy/utls'
 
 // ============================================================================
 // Mock Provider for Unit Tests
