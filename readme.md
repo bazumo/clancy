@@ -7,13 +7,13 @@ HTTP/HTTPS debugging proxy with a real-time web UI. Built for inspecting AI agen
 ## Install
 
 ```bash
-npx clancy-proxy
+npx clancy-proxy@latest
 ```
 
 Or install globally:
 
 ```bash
-npm install -g clancy-proxy
+npm install -g clancy-proxy@latest
 clancy
 ```
 
