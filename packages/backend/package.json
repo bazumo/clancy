@@ -1,7 +1,7 @@
 {
-  "name": "clancy-proxy",
+  "name": "@clancyapp/backend",
   "version": "0.0.5-beta.0",
-  "description": "HTTP/HTTPS proxy with real-time monitoring for Agent traffic",
+  "description": "HTTP/HTTPS proxy library with real-time monitoring for Agent traffic",
   "type": "module",
   "author": "bazumo",
   "repository": {
@@ -27,13 +27,18 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "bin": {
-    "clancy": "bin/clancy.js"
-  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
-    "bin/",
     "dist/",
     "readme.md"
   ],
@@ -54,14 +59,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@clancyapp/shared": "0.0.5-beta.0",
-    "commander": "^14.0.2",
     "express": "^5.2.1",
     "fzstd": "^0.1.1",
     "node-forge": "^1.3.3",
     "ws": "^8.19.0"
-  },
-  "optionalDependencies": {
-    "@clancyapp/utls": "0.0.5-beta.0"
   },
   "devDependencies": {
     "@clancyapp/utls": "0.0.5-beta.0",

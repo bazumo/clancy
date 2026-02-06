@@ -2,6 +2,7 @@
   "mode": "pre",
   "tag": "beta",
   "initialVersions": {
+    "@clancyapp/backend": "0.0.4",
     "clancy-proxy": "0.0.4",
     "@clancyapp/frontend": "0.0.4",
     "@clancyapp/shared": "0.0.4",

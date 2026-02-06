@@ -11,7 +11,8 @@
     "packages/utls/platforms/darwin-x64",
     "packages/utls/platforms/darwin-arm64",
     "packages/frontend",
-    "packages/backend"
+    "packages/backend",
+    "packages/app"
   ],
   "engines": {
     "node": ">=20.0.0"

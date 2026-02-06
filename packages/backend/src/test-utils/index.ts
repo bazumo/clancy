@@ -15,7 +15,7 @@ export * from './certificates.js'
 export { initZstd, compress } from './compression.js'
 export * from './target-servers.js'
 export { startProxy } from './proxy-runner.js'
-export type { ProxyHandle as ProxyHandleWithProcess } from './proxy-runner.js'
+export type { ProxyHandle as ProxyHandleWithInstance } from './proxy-runner.js'
 export * from './http-clients.js'
 export { COMPRESSIONS, TRANSFER_MODES, BODY_SIZES, cartesian, generateResponseMatrix, generateStreamMatrix, formatTestCase, filterTestCases } from './test-matrix.js'
 

@@ -1,8 +1,7 @@
 import tls from 'tls'
 import http from 'http'
 import type { Duplex } from 'stream'
-import { tlsConnect } from './tls-provider.js'
-import { utlsProvider } from '@clancyapp/utls'
+import { tlsConnect, getDefaultFingerprint } from './tls-provider.js'
 import { handleProxyResponse, handleProxyError, type ResponseWriter } from './proxy-handler.js'
 import type { Flow } from '@clancyapp/shared'
 
@@ -29,7 +28,7 @@ export async function createProviderTlsSocket(host: string, port: number): Promi
   return tlsConnect({
     host,
     port,
-    fingerprint: utlsProvider.getDefaultFingerprint()
+    fingerprint: getDefaultFingerprint()
   })
 }
 

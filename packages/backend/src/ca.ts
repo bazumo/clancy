@@ -1,15 +1,20 @@
 import tls from 'tls'
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import forge from 'node-forge'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-export const CERTS_DIR = path.join(__dirname, '..', 'certs')
+let certsDir: string | null = null
 
-// Ensure certs directory exists
-if (!fs.existsSync(CERTS_DIR)) {
-  fs.mkdirSync(CERTS_DIR, { recursive: true })
+export function initCertsDir(dir?: string): void {
+  certsDir = dir || path.join(process.cwd(), 'certs')
+  if (!fs.existsSync(certsDir)) {
+    fs.mkdirSync(certsDir, { recursive: true })
+  }
+}
+
+export function getCertsDir(): string {
+  if (!certsDir) initCertsDir()
+  return certsDir!
 }
 
 // CA certificate management
@@ -18,8 +23,9 @@ let caKey: forge.pki.PrivateKey
 const certCache = new Map<string, tls.SecureContext>()
 
 export function loadOrCreateCA() {
-  const caCertPath = path.join(CERTS_DIR, 'ca.crt')
-  const caKeyPath = path.join(CERTS_DIR, 'ca.key')
+  const dir = getCertsDir()
+  const caCertPath = path.join(dir, 'ca.crt')
+  const caKeyPath = path.join(dir, 'ca.key')
 
   if (fs.existsSync(caCertPath) && fs.existsSync(caKeyPath)) {
     caCert = forge.pki.certificateFromPem(fs.readFileSync(caCertPath, 'utf-8'))
@@ -92,4 +98,3 @@ export function generateCertForHost(host: string): tls.SecureContext {
   certCache.set(host, ctx)
   return ctx
 }
-

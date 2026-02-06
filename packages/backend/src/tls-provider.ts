@@ -139,3 +139,16 @@ export function getAvailableProviders(): string[] {
   return Array.from(providers.keys())
 }
 
+/**
+ * Default TLS fingerprint used when connecting via a provider
+ */
+let defaultFingerprint: TLSFingerprint = 'electron'
+
+export function setDefaultFingerprint(fp: TLSFingerprint): void {
+  defaultFingerprint = fp
+}
+
+export function getDefaultFingerprint(): TLSFingerprint {
+  return defaultFingerprint
+}
+
