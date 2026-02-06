@@ -4,7 +4,7 @@ import net from 'net'
 import tls from 'tls'
 import path from 'path'
 import type { Flow } from '@clancyapp/shared'
-import { loadOrCreateCA, generateCertForHost, getCertsDir, initCertsDir } from './ca.js'
+import { loadOrCreateCA, generateCertForHost, initCertsDir } from './ca.js'
 import { generateId } from './utils.js'
 import * as store from './flow-store.js'
 import { handleUiWebSocketUpgrade } from './flow-store.js'
@@ -455,10 +455,19 @@ export function createServer(options?: ClancyServerOptions): ClancyServer {
       return new Promise<void>((resolve) => {
         server.listen(PORT, HOST, () => {
           const addr = server.address() as import('net').AddressInfo
-          console.log(`Clancy proxy running on http://${HOST}:${addr.port}`)
-          const cDir = getCertsDir()
-          console.log(`CA certificate: ${cDir ? path.join(cDir, 'ca.crt') : '(in-memory)'}`)
-          console.log(`TLS Provider: ${getActiveProvider() ? `uTLS (Go) - ${TLS_FINGERPRINT}` : 'Node.js (native)'}`)
+          const url = `http://${HOST}:${addr.port}`
+          console.log('')
+          console.log('   _____ _')
+          console.log('  / ____| |')
+          console.log(' | |    | | __ _ _ __   ___ _   _')
+          console.log(' | |    | |/ _` | \'_ \\ / __| | | |')
+          console.log(' | |____| | (_| | | | | (__| |_| |')
+          console.log('  \\_____|_|\\__,_|_| |_|\\___|\\__, |')
+          console.log('                             __/ |')
+          console.log('                            |___/')
+          console.log('')
+          console.log(`  Proxy & Web UI running on ${url}`)
+          console.log('')
           resolve()
         })
       })
