@@ -24,6 +24,7 @@ import { createNativeTlsSocket, createProviderTlsSocket } from './tls-sockets.js
 import { createTunnelHttpParser, attachSocketToParser } from './https-tunnel-handler.js'
 import './modifiers/index.js'
 import { applyRequestModifiers } from './modifiers/apply.js'
+import { createHostFilter } from './host-filter.js'
 
 export interface ClancyServerOptions {
   port?: number
@@ -33,6 +34,8 @@ export interface ClancyServerOptions {
   staticDir?: string
   certsDir?: string
   providers?: TLSProvider[]
+  includeHosts?: string[]
+  excludeHosts?: string[]
 }
 
 export interface ClancyServer {
@@ -50,6 +53,9 @@ export function createServer(options?: ClancyServerOptions): ClancyServer {
   const TLS_FINGERPRINT = opts.tlsFingerprint ?? 'electron'
   const staticDir = opts.staticDir
   const certsDir = opts.certsDir
+  const includeHosts = opts.includeHosts
+  const excludeHosts = opts.excludeHosts
+  const shouldIntercept = createHostFilter(includeHosts, excludeHosts)
 
   // Initialize certs directory
   initCertsDir(certsDir)
@@ -369,6 +375,60 @@ export function createServer(options?: ClancyServerOptions): ClancyServer {
 
     console.log(`[CONNECT] New tunnel request: ${host}:${port}`)
 
+    // If host is filtered, pipe raw TCP without TLS interception
+    if (!shouldIntercept(host)) {
+      console.log(`[CONNECT] Passing through (filtered): ${host}:${port}`)
+
+      clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+
+      const flow: Flow = {
+        id: generateId(),
+        timestamp: new Date().toISOString(),
+        host: `${host}:${port}`,
+        type: 'https',
+        filtered: true,
+        request: {
+          method: 'CONNECT',
+          url: `${host}:${port}`,
+          path: '/',
+          headers: req.headers as Record<string, string | string[] | undefined>
+        }
+      }
+      store.saveFlow(flow)
+      requestCount++
+
+      const upstream = net.connect(port, host, () => {
+        console.log(`[CONNECT] Tunnel established (filtered): ${host}:${port}`)
+        upstream.pipe(clientSocket)
+        clientSocket.pipe(upstream)
+      })
+
+      activeSockets.add(clientSocket as net.Socket)
+      activeSockets.add(upstream)
+
+      upstream.on('error', (err) => {
+        console.error(`[CONNECT] Upstream tunnel error for ${host}:${port}:`, err.message)
+        clientSocket.destroy()
+      })
+
+      upstream.on('close', () => {
+        activeSockets.delete(upstream)
+        if (!clientSocket.destroyed) clientSocket.destroy()
+      })
+
+      clientSocket.on('error', (err) => {
+        console.error(`[CONNECT] Client tunnel error for ${host}:${port}:`, err.message)
+        upstream.destroy()
+      })
+
+      clientSocket.on('close', () => {
+        activeSockets.delete(clientSocket as net.Socket)
+        if (!upstream.destroyed) upstream.destroy()
+      })
+
+      return
+    }
+
     // Create TLS server for the client
     const serverCtx = generateCertForHost(host)
 
@@ -467,6 +527,12 @@ export function createServer(options?: ClancyServerOptions): ClancyServer {
           console.log('                            |___/')
           console.log('')
           console.log(`  Proxy & Web UI running on ${url}`)
+          if (includeHosts) {
+            console.log(`  Intercepting only: ${includeHosts.join(', ')}`)
+          }
+          if (excludeHosts) {
+            console.log(`  Excluding from interception: ${excludeHosts.join(', ')}`)
+          }
           console.log('')
           resolve()
         })

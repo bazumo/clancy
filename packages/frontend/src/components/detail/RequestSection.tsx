@@ -23,6 +23,16 @@ export function RequestSection({
   const modes = getRequestViewModes(flow, enhancer)
 
   const renderContent = () => {
+    if (flow.filtered) {
+      return (
+        <div className="px-4 py-4 space-y-2 text-xs text-muted-foreground">
+          <p><span className="font-medium text-foreground">Host:</span> {flow.host}</p>
+          <p><span className="font-medium text-foreground">Method:</span> {flow.request.method}</p>
+          <p><span className="font-medium text-foreground">Mode:</span> Raw TCP tunnel (TLS not intercepted)</p>
+        </div>
+      )
+    }
+
     if (viewMode === 'raw' && flow.hasRawHttp) {
       return <FetchedRawHttpView flowId={flow.id} type="request" />
     }

@@ -34,4 +34,5 @@ export interface Flow {
   duration?: number
   isSSE?: boolean
   hasRawHttp?: boolean  // Whether raw HTTP is available via API
+  filtered?: boolean    // TLS was not intercepted — raw TCP tunnel
 }

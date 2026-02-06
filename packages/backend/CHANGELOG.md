@@ -1,5 +1,14 @@
 # clancy-proxy
 
+## 0.0.6
+
+### Patch Changes
+
+- adfef35: improve startup message
+- add include/exclude hosts functionality
+- Updated dependencies
+  - @clancyapp/shared@0.0.6
+
 ## 0.0.5
 
 ### Patch Changes

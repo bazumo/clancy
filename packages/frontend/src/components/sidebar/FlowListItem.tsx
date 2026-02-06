@@ -19,12 +19,16 @@ export const FlowListItem = memo(function FlowListItem({ flow, isSelected, event
       onClick={onSelect}
       className={cn(
         'w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors overflow-hidden h-[60px] flex flex-col justify-center',
-        isSelected && 'bg-muted'
+        isSelected && 'bg-muted',
+        flow.filtered && 'opacity-60'
       )}
     >
       <div className="flex items-center gap-2 mb-1 w-full">
         <MethodBadge method={flow.request.method} className="shrink-0" />
         <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">{flow.host}</span>
+        {flow.filtered && (
+          <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 shrink-0">TUNNEL</span>
+        )}
         {flow.isSSE && <EventCountBadge count={eventCount} />}
         {flow.response && <StatusBadge status={flow.response.status} className="shrink-0" />}
       </div>

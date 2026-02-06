@@ -14,9 +14,20 @@ program
   .option('-p, --port <port>', 'Port to listen on', '9090')
   .option('-H, --host <host>', 'Host to bind to', 'localhost')
   .option('-c, --certs-dir <path>', 'Directory to persist CA certificates (in-memory if omitted)')
+  .option('--include-hosts <hosts>', 'Only intercept TLS for these hosts (comma-separated, supports * wildcards)')
+  .option('--exclude-hosts <hosts>', 'Do not intercept TLS for these hosts (comma-separated, supports * wildcards)')
   .parse()
 
-const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string; host: string; certsDir?: string }>()
+const opts = program.opts<{ tlsProvider: string; tlsFingerprint: string; port: string; host: string; certsDir?: string; includeHosts?: string; excludeHosts?: string }>()
+
+// Validate mutual exclusivity of host filters
+if (opts.includeHosts && opts.excludeHosts) {
+  console.error('Error: --include-hosts and --exclude-hosts are mutually exclusive')
+  process.exit(1)
+}
+
+const includeHosts = opts.includeHosts?.split(',').map(h => h.trim()).filter(Boolean)
+const excludeHosts = opts.excludeHosts?.split(',').map(h => h.trim()).filter(Boolean)
 
 // Try to load utls provider
 const providers: TLSProvider[] = []
@@ -40,7 +51,9 @@ const server = createServer({
   tlsFingerprint: (opts.tlsFingerprint || process.env.TLS_FINGERPRINT || 'electron') as TLSFingerprint,
   staticDir,
   certsDir: opts.certsDir,
-  providers
+  providers,
+  includeHosts,
+  excludeHosts
 })
 
 server.start().catch((err) => {

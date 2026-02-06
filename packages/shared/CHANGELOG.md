@@ -1,5 +1,11 @@
 # @clancyapp/shared
 
+## 0.0.6
+
+### Patch Changes
+
+- add include/exclude hosts functionality
+
 ## 0.0.5
 
 ### Patch Changes

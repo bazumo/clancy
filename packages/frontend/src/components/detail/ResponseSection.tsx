@@ -33,6 +33,14 @@ export function ResponseSection({
   const effectiveMode = getEffectiveResponseViewMode(viewMode, flow, hasEvents)
 
   const renderContent = () => {
+    if (flow.filtered) {
+      return (
+        <div className="px-4 py-4 text-xs text-muted-foreground">
+          TLS was not intercepted for this connection. Bytes were piped through as a raw TCP tunnel.
+        </div>
+      )
+    }
+
     if (!flow.response) {
       return (
         <div className="px-4 pb-4 text-xs text-muted-foreground">Waiting for response...</div>
@@ -94,10 +102,12 @@ export function ResponseSection({
           <span className="text-xs font-medium uppercase tracking-wider text-amber-400 shrink-0">
             Response
           </span>
-          {flow.response ? (
+          {flow.filtered ? (
+            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500">TUNNEL</span>
+          ) : flow.response ? (
             <>
               <StatusBadge status={flow.response.status} className="shrink-0" />
-           
+
               <div className="flex-1" />
               {modes.length > 1 && (
                 <ViewModeToggle value={viewMode} onChange={onViewModeChange} modes={modes} />

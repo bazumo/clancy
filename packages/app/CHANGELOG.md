@@ -1,5 +1,14 @@
 # clancy-proxy
 
+## 0.0.6
+
+### Patch Changes
+
+- add include/exclude hosts functionality
+- Updated dependencies [adfef35]
+- Updated dependencies
+  - @clancyapp/backend@0.0.6
+
 ## 0.0.5
 
 ### Patch Changes
